@@ -1,1 +1,183 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TALID | مركز التشغيل</title><link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script></head><body><div id="login" class="login"><h1>TALID <small>تليد</small></h1><p>مركز تشغيل التجارة</p><input id="email" type="email" placeholder="البريد الإلكتروني"><input id="password" type="password" placeholder="كلمة المرور"><button id="loginBtn">تسجيل الدخول</button><p id="msg"></p></div><div id="app" hidden><aside><h2>TALID</h2><p>HERITAGE • AMBITION • INNOVATION</p><nav><button data-page="overview">لوحة التشغيل</button><button data-page="products">المنتجات والكتالوج</button><button data-page="orders">الطلبات والتسليم</button><button data-page="markets">الدول والأسعار</button><button data-page="profit">الأرباح والمستحقات</button><button data-page="campaigns">التسويق والحملات</button><button data-page="integrations">التكاملات والجاهزية</button><button data-page="activity">سجل التشغيل</button><button data-page="settings">الإعدادات</button></nav><button id="logout">خروج</button></aside><main><header><button id="menu">☰</button><b id="title">لوحة التشغيل</b><span>Taager + EasyOrders</span></header><div id="notice" class="notice">المنصة في وضع المراجعة. لا توجد مهام تلقائية قبل توثيق الاتصالات.</div><section id="view"></section></main></div><div id="toast"></div><script src="app.js"></script></body></html>
+
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta name="theme-color" content="#0B1F44">
+  <meta name="description" content="TALID - مركز تشغيل التجارة وإدارة الأسواق والطلبات">
+
+  <title>TALID | مركز التشغيل</title>
+
+  <link rel="stylesheet" href="style.css">
+
+  <style>
+    [hidden] {
+      display: none !important;
+    }
+
+    #msg, #toast {
+      overflow-wrap: anywhere;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      max-width: calc(100% - 40px);
+    }
+  </style>
+
+  <!-- مكتبة Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- إعدادات الاتصال -->
+  <script src="config.js"></script>
+</head>
+
+<body>
+
+  <!-- شاشة تسجيل الدخول -->
+  <div id="login" class="login">
+
+    <h1>
+      TALID
+      <small>تليد</small>
+    </h1>
+
+    <p>مركز تشغيل التجارة</p>
+
+    <form id="loginForm">
+
+      <input
+        id="email"
+        type="email"
+        placeholder="البريد الإلكتروني"
+        autocomplete="username"
+        required
+      >
+
+      <input
+        id="password"
+        type="password"
+        placeholder="كلمة المرور"
+        autocomplete="current-password"
+        required
+      >
+
+      <button id="loginBtn" type="submit">
+        تسجيل الدخول
+      </button>
+
+    </form>
+
+    <p id="msg" role="alert" aria-live="polite"></p>
+
+  </div>
+
+  <!-- لوحة التشغيل -->
+  <div id="app" hidden>
+
+    <aside>
+
+      <h2>TALID</h2>
+
+      <p>HERITAGE • AMBITION • INNOVATION</p>
+
+      <nav aria-label="القائمة الرئيسية">
+
+        <button type="button" data-page="overview">
+          لوحة التشغيل
+        </button>
+
+        <button type="button" data-page="products">
+          المنتجات والكتالوج
+        </button>
+
+        <button type="button" data-page="orders">
+          الطلبات والتسليم
+        </button>
+
+        <button type="button" data-page="markets">
+          الدول والأسعار
+        </button>
+
+        <button type="button" data-page="profit">
+          الأرباح والمستحقات
+        </button>
+
+        <button type="button" data-page="campaigns">
+          التسويق والحملات
+        </button>
+
+        <button type="button" data-page="integrations">
+          التكاملات والجاهزية
+        </button>
+
+        <button type="button" data-page="activity">
+          سجل التشغيل
+        </button>
+
+        <button type="button" data-page="settings">
+          الإعدادات
+        </button>
+
+      </nav>
+
+      <button id="logout" type="button">
+        خروج
+      </button>
+
+    </aside>
+
+    <main>
+
+      <header>
+
+        <button id="menu" type="button" aria-label="فتح القائمة">
+          ☰
+        </button>
+
+        <b id="title">لوحة التشغيل</b>
+
+        <span>Taager + EasyOrders</span>
+
+      </header>
+
+      <div
+        id="notice"
+        class="notice"
+        role="status"
+        aria-live="polite"
+      >
+        المنصة في وضع المراجعة.
+        لا توجد مهام تلقائية قبل توثيق الاتصالات.
+      </div>
+
+      <section id="view" aria-live="polite">
+
+        <div class="panel">
+          جارٍ تجهيز مركز التشغيل...
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- رسائل التنبيه -->
+  <div
+    id="toast"
+    role="status"
+    aria-live="polite"
+    hidden
+  ></div>
+
+  <!-- تشغيل التطبيق -->
+  <script src="app.js"></script>
+
+</body>
+</html>
