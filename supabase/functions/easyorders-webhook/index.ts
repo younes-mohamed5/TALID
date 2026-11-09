@@ -16,7 +16,7 @@ const db = createClient(SUPABASE_URL, SERVICE_KEY, {
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "content-type, x-talid-webhook-secret",
+    "content-type, x-talid-webhook-secret, secret",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
@@ -59,6 +59,76 @@ function normalizeStatus(value: unknown): string {
   return map[status] ?? "pending";
 }
 
+function getOrderObject(payload: any): any {
+  return (
+    payload?.order ??
+    payload?.data?.order ??
+    payload?.data ??
+    payload
+  );
+}
+
+function getOrderItems(order: any): any[] | null {
+  const items =
+    order?.cart_items ??
+    order?.items ??
+    order?.order_items;
+
+  return Array.isArray(items) ? items : null;
+}
+
+function normalizeOrderItem(item: any) {
+  const product = item?.product ?? {};
+
+  const quantity = Math.max(
+    1,
+    Math.floor(
+      num(item?.quantity ?? product?.quantity ?? 1)
+    )
+  );
+
+  const unitPrice = num(
+    item?.price ??
+    item?.unit_price ??
+    product?.price ??
+    0
+  );
+
+  return {
+    product_name: str(
+      product?.name ??
+      item?.product_name ??
+      item?.name ??
+      "منتج بدون اسم"
+    ),
+    sku: str(
+      product?.sku ??
+      product?.taager_code ??
+      item?.sku ??
+      item?.product_sku
+    ) || null,
+    quantity,
+    unit_price: unitPrice,
+    unit_cost: 0,
+  };
+}
+
+async function markEventFailed(
+  eventKey: string,
+  message: string
+) {
+  await db
+    .from("talid_webhook_events")
+    .update({
+      processing_status: "failed",
+      processed: false,
+      error: message,
+      last_error: message,
+    })
+    .eq("provider", "easyorders")
+    .eq("event_key", eventKey);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -68,7 +138,7 @@ Deno.serve(async (req: Request) => {
     return reply({
       service: "TALID EasyOrders Webhook",
       status: "available",
-      version: "3.0.0",
+      version: "4.0.0",
     });
   }
 
@@ -82,15 +152,16 @@ Deno.serve(async (req: Request) => {
     }, 503);
   }
 
-  // Verify the secret sent by EasyOrders in the request header.
+  // Verify EasyOrders webhook secret.
   const suppliedSecret =
-    req.headers.get("x-talid-webhook-secret") ||
+    req.headers.get("x-talid-webhook-secret") ??
     req.headers.get("secret");
 
   if (!suppliedSecret || suppliedSecret !== WEBHOOK_SECRET) {
     return reply({ error: "Unauthorized" }, 401);
   }
 
+  // Read request body.
   let payload: any;
 
   try {
@@ -99,12 +170,9 @@ Deno.serve(async (req: Request) => {
     return reply({ error: "Invalid JSON payload" }, 400);
   }
 
-  const order =
-    payload?.order ??
-    payload?.data?.order ??
-    payload?.data ??
-    payload;
+  const order = getOrderObject(payload);
 
+  // Get external order ID.
   const externalId = str(
     order?.id ??
     order?.order_id ??
@@ -135,7 +203,7 @@ Deno.serve(async (req: Request) => {
 
   const now = new Date().toISOString();
 
-  // Save the incoming event.
+  // Save webhook event.
   const inbox = {
     provider: "easyorders",
     event_type: eventType,
@@ -146,6 +214,8 @@ Deno.serve(async (req: Request) => {
     signature_valid: true,
     processing_status: "received",
     processed: false,
+    error: null,
+    last_error: null,
   };
 
   const { error: inboxError } = await db
@@ -164,6 +234,7 @@ Deno.serve(async (req: Request) => {
     }, 500);
   }
 
+  // Read actual EasyOrders order fields.
   const customer = order?.customer ?? {};
 
   const status = normalizeStatus(
@@ -176,31 +247,40 @@ Deno.serve(async (req: Request) => {
   const currency = str(
     order?.currency ??
     order?.currency_code ??
+    order?.custom_currency ??
     "EGP"
   ).toUpperCase();
 
-  const totalAmount = num(
-    order?.total ??
-    order?.total_price ??
-    order?.total_amount ??
-    order?.amount
+  // EasyOrders actual fields:
+  // cost = products subtotal
+  // shipping_cost = shipping
+  // total_cost = final total
+
+  const subtotal = num(
+    order?.cost ??
+    order?.subtotal ??
+    order?.sub_total ??
+    0
   );
 
   const shippingAmount = num(
+    order?.shipping_cost ??
     order?.shipping_amount ??
     order?.shipping ??
-    order?.shipping_cost
+    0
   );
 
-  const discountAmount = num(
-    order?.discount_amount ??
-    order?.discount
+  const totalAmount = num(
+    order?.total_cost ??
+    order?.total_amount ??
+    order?.total ??
+    order?.total_price ??
+    (subtotal + shippingAmount)
   );
 
-  const subtotal = num(
-    order?.subtotal ??
-    order?.sub_total ??
-    (totalAmount - shippingAmount + discountAmount)
+  const discountAmount = Math.max(
+    0,
+    subtotal + shippingAmount - totalAmount
   );
 
   const marketCode = str(
@@ -210,7 +290,7 @@ Deno.serve(async (req: Request) => {
     "EG"
   ).toUpperCase();
 
-  // Find the country.
+  // Find country.
   let countryId: string | null = null;
 
   const { data: country, error: countryError } = await db
@@ -219,13 +299,19 @@ Deno.serve(async (req: Request) => {
     .eq("code", marketCode)
     .maybeSingle();
 
-  if (!countryError && country) {
+  if (countryError) {
+    console.error("Country lookup:", countryError.message);
+  }
+
+  if (country) {
     countryId = country.id;
   }
 
+  // Customer details.
   const customerDetails = {
     name: str(
       customer?.name ??
+      customer?.full_name ??
       order?.customer_name ??
       order?.name
     ),
@@ -247,6 +333,7 @@ Deno.serve(async (req: Request) => {
 
   const orderNumber = `EO-${externalId}`;
 
+  // Prepare TALID order row.
   const orderRow: Record<string, unknown> = {
     order_number: orderNumber,
     source_channel: "easyorders",
@@ -269,7 +356,7 @@ Deno.serve(async (req: Request) => {
     orderRow.country_id = countryId;
   }
 
-  // Find existing order by its external ID.
+  // Find existing order.
   const { data: existingOrder, error: lookupError } = await db
     .from("orders")
     .select("id")
@@ -278,14 +365,7 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (lookupError) {
-    await db.from("talid_webhook_events")
-      .update({
-        processing_status: "failed",
-        processed: false,
-        error: lookupError.message,
-      })
-      .eq("provider", "easyorders")
-      .eq("event_key", eventKey);
+    await markEventFailed(eventKey, lookupError.message);
 
     return reply({
       received: true,
@@ -296,7 +376,9 @@ Deno.serve(async (req: Request) => {
   }
 
   let savedOrderId: string | null = null;
+  let action = "created";
 
+  // Update existing order or create new order.
   if (existingOrder) {
     const { data, error } = await db
       .from("orders")
@@ -306,14 +388,7 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (error) {
-      await db.from("talid_webhook_events")
-        .update({
-          processing_status: "failed",
-          processed: false,
-          error: error.message,
-        })
-        .eq("provider", "easyorders")
-        .eq("event_key", eventKey);
+      await markEventFailed(eventKey, error.message);
 
       return reply({
         received: true,
@@ -324,6 +399,7 @@ Deno.serve(async (req: Request) => {
     }
 
     savedOrderId = data.id;
+    action = "updated";
   } else {
     const { data, error } = await db
       .from("orders")
@@ -332,14 +408,7 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (error) {
-      await db.from("talid_webhook_events")
-        .update({
-          processing_status: "failed",
-          processed: false,
-          error: error.message,
-        })
-        .eq("provider", "easyorders")
-        .eq("event_key", eventKey);
+      await markEventFailed(eventKey, error.message);
 
       return reply({
         received: true,
@@ -352,13 +421,75 @@ Deno.serve(async (req: Request) => {
     savedOrderId = data.id;
   }
 
-  // Mark the event as successfully processed.
+  // Sync product items only when the webhook includes an items array.
+  // This prevents status-only updates from deleting existing items.
+  const incomingItems = getOrderItems(order);
+
+  let itemsInserted = 0;
+
+  if (incomingItems !== null) {
+    const normalizedItems = incomingItems
+      .map(normalizeOrderItem)
+      .filter((item) => item.product_name && item.quantity > 0);
+
+    // Remove previous items before inserting the latest snapshot.
+    const { error: deleteError } = await db
+      .from("order_items")
+      .delete()
+      .eq("order_id", savedOrderId);
+
+    if (deleteError) {
+      await markEventFailed(eventKey, deleteError.message);
+
+      return reply({
+        received: true,
+        order_synced: true,
+        items_synced: false,
+        error: "Could not replace previous order items",
+        details: deleteError.message,
+      }, 500);
+    }
+
+    if (normalizedItems.length > 0) {
+      // line_total is generated by the database.
+      // Do not send line_total in the insert.
+      const itemRows = normalizedItems.map((item) => ({
+        order_id: savedOrderId,
+        product_name: item.product_name,
+        sku: item.sku,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        unit_cost: item.unit_cost,
+      }));
+
+      const { error: itemsError } = await db
+        .from("order_items")
+        .insert(itemRows);
+
+      if (itemsError) {
+        await markEventFailed(eventKey, itemsError.message);
+
+        return reply({
+          received: true,
+          order_synced: true,
+          items_synced: false,
+          error: "Could not save order items",
+          details: itemsError.message,
+        }, 500);
+      }
+
+      itemsInserted = itemRows.length;
+    }
+  }
+
+  // Mark webhook event as processed.
   const { error: finishError } = await db
     .from("talid_webhook_events")
     .update({
       processing_status: "processed",
       processed: true,
       error: null,
+      last_error: null,
       processed_at: now,
     })
     .eq("provider", "easyorders")
@@ -366,15 +497,31 @@ Deno.serve(async (req: Request) => {
 
   if (finishError) {
     console.error("Event update error:", finishError.message);
+
+    return reply({
+      success: true,
+      order_synced: true,
+      items_inserted: itemsInserted,
+      warning: "Order saved but event status update failed",
+      details: finishError.message,
+    }, 200);
   }
 
   return reply({
     success: true,
     received: true,
     order_synced: true,
-    action: existingOrder ? "updated" : "created",
+    items_synced: incomingItems !== null,
+    items_inserted: itemsInserted,
+    action,
     order_id: savedOrderId,
     external_order_id: externalId,
+    order_number: orderNumber,
+    subtotal,
+    shipping_amount: shippingAmount,
+    discount_amount: discountAmount,
+    total_amount: totalAmount,
+    currency,
     event_type: eventType,
   });
 });
