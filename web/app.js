@@ -449,6 +449,57 @@
     };
   }
 
+
+  // =========================================
+  // كتالوج المنتجات - عرض السجلات الفعلية فقط
+  // =========================================
+  async function renderProducts() {
+    const rows = await db.from("products")
+      .select("id,sku,supplier_sku,supplier_product_id,name_ar,name_en,supplier_name,cost_price,sale_price,currency_code,stock_status,status,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(200);
+    if (rows.error) throw rows.error;
+    const products = rows.data || [];
+    const view = $("view");
+    view.innerHTML = `
+      <div class="head">
+        <div><h1>${pages.products}</h1>
+        <p class="muted">عرض كتالوج المنتجات المحفوظ حاليًا في قاعدة البيانات، مع كود المورد والتكلفة والسعر.</p></div>
+        <span class="badge">عدد المنتجات: ${products.length}</span>
+      </div>
+      <div class="panel">
+        <label for="productSearch"><b>بحث بالاسم أو SKU / Taager Code</b></label>
+        <input id="productSearch" type="search" placeholder="اكتب اسم المنتج أو الكود" style="display:block;width:100%;max-width:520px;margin-top:8px;padding:12px;border:1px solid #d8deea;border-radius:10px">
+        <p class="muted">استيراد Taager المباشر غير مفعل حتى يتم توثيق واجهة الربط الرسمية. لن نضيف منتجات وهمية أو نعتبر بيانات المتجر مستوردة.</p>
+      </div>
+      <div id="productRows"></div>`;
+    const target = $("productRows");
+    const draw = (query = "") => {
+      const q = query.trim().toLowerCase();
+      const filtered = products.filter(p => [p.name_ar,p.name_en,p.sku,p.supplier_sku,p.supplier_product_id]
+        .some(v => String(v || "").toLowerCase().includes(q)));
+      if (!filtered.length) {
+        target.innerHTML = '<div class="panel"><p class="muted">لا توجد منتجات مطابقة. إذا كان الكتالوج فارغًا، فهذا يعني أن مزامنة Taager لم تُنفذ بعد.</p></div>';
+        return;
+      }
+      const fmt = v => v == null ? "غير مسجل" : new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v));
+      target.innerHTML = `<div class="panel" style="overflow:auto"><table>
+        <thead><tr><th>المنتج</th><th>SKU</th><th>كود المورد</th><th>المورد</th><th>التكلفة</th><th>السعر</th><th>العملة</th><th>المخزون</th><th>الحالة</th></tr></thead>
+        <tbody>${filtered.map(p => `<tr>
+          <td>${escapeHTML(p.name_ar || p.name_en || "بدون اسم")}</td>
+          <td>${escapeHTML(p.sku || "غير مسجل")}</td>
+          <td>${escapeHTML(p.supplier_sku || p.supplier_product_id || "غير مسجل")}</td>
+          <td>${escapeHTML(p.supplier_name || "غير محدد")}</td>
+          <td>${fmt(p.cost_price)}</td><td>${fmt(p.sale_price)}</td>
+          <td>${escapeHTML(p.currency_code || "غير محددة")}</td>
+          <td>${escapeHTML(p.stock_status || "غير محدد")}</td>
+          <td>${escapeHTML(p.status || "غير محدد")}</td>
+        </tr>`).join("")}</tbody></table></div>`;
+    };
+    $("productSearch").addEventListener("input", e => draw(e.target.value));
+    draw();
+  }
+
   // =========================================
   // الأسواق
   // =========================================
@@ -595,6 +646,102 @@
     } catch (error) {
       showError($("marketProducts"), error.message);
     }
+  }
+
+
+  // =========================================
+  // الحملات - إنشاء مسودات ومراجعة الميزانية بالجنيه
+  // =========================================
+  async function renderCampaigns() {
+    const [campaignResult, countryResult] = await Promise.all([
+      db.from("marketing_campaigns").select("id,name,platform,country_id,status,budget,currency_code,start_at,end_at,created_at").order("created_at",{ascending:false}).limit(200),
+      db.from("countries").select("id,code,name_ar,currency_code").order("code")
+    ]);
+    if (campaignResult.error) throw campaignResult.error;
+    if (countryResult.error) throw countryResult.error;
+    const campaigns = campaignResult.data || [];
+    const countries = countryResult.data || [];
+    const countryMap = new Map(countries.map(c => [c.id,c]));
+    const view = $("view");
+    view.innerHTML = `
+      <div class="head"><div><h1>${pages.campaigns}</h1>
+      <p class="muted">إنشاء مسودات الحملات ومراجعة ميزانياتها. جميع ميزانيات ومصروفات الحملات تُسجل بالجنيه المصري (EGP).</p></div>
+      <span class="badge">لا نشر ولا إنفاق تلقائي</span></div>
+      <div class="panel">
+        <h3>إنشاء حملة — مسودة للمراجعة فقط</h3>
+        <form id="campaignForm" style="display:grid;gap:10px">
+          <input id="campaignName" required maxlength="120" placeholder="اسم الحملة">
+          <select id="campaignPlatform" required>
+            <option value="meta">Meta (Facebook / Instagram)</option>
+            <option value="other">منصة أخرى</option>
+          </select>
+          <select id="campaignCountry" required>
+            <option value="">اختر السوق المستهدف</option>
+            ${countries.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name_ar)} — ${escapeHTML(c.code)}</option>`).join("")}
+          </select>
+          <label for="campaignBudget">الميزانية بالجنيه المصري (EGP)</label>
+          <input id="campaignBudget" type="number" min="0" step="0.01" required placeholder="0.00">
+          <button id="saveCampaign" type="submit">حفظ كمسودة</button>
+        </form>
+        <p class="muted">حفظ المسودة لا ينشئ إعلانًا ولا يربط بطاقة دفع ولا ينفق أي أموال.</p>
+      </div>
+      <div class="panel"><h3>الحملات المسجلة</h3><div id="campaignRows"></div></div>`;
+    $("campaignForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = $("saveCampaign");
+      button.disabled = true;
+      try {
+        const budget = Number($("campaignBudget").value);
+        if (!Number.isFinite(budget) || budget < 0) throw new Error("أدخل ميزانية صحيحة بالجنيه المصري.");
+        const {error} = await db.from("marketing_campaigns").insert({
+          name: $("campaignName").value.trim(),
+          platform: $("campaignPlatform").value,
+          country_id: $("campaignCountry").value,
+          status: "draft",
+          budget,
+          currency_code: "EGP",
+          content: {approval_required: true, publishing_enabled: false}
+        });
+        if (error) throw error;
+        notify("تم حفظ الحملة كمسودة بالجنيه المصري. لم يتم نشر إعلان.");
+        await renderCampaigns();
+      } catch (error) {
+        notify("تعذر حفظ المسودة: " + error.message);
+        button.disabled = false;
+      }
+    });
+    const target = $("campaignRows");
+    if (!campaigns.length) {
+      target.innerHTML = '<p class="muted">لا توجد حملات مسجلة حتى الآن.</p>';
+      return;
+    }
+    const fmt = v => v == null ? "غير محددة" : new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP"}).format(Number(v));
+    target.innerHTML = `<div style="overflow:auto"><table>
+      <thead><tr><th>الحملة</th><th>المنصة</th><th>السوق</th><th>الميزانية</th><th>العملة</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+      <tbody>${campaigns.map(c => `<tr>
+        <td>${escapeHTML(c.name)}</td><td>${escapeHTML(c.platform)}</td>
+        <td>${escapeHTML(countryMap.get(c.country_id)?.name_ar || "غير محدد")}</td>
+        <td>${fmt(c.budget)}</td><td>${escapeHTML(c.currency_code || "غير مسجلة")}</td>
+        <td>${escapeHTML(c.status)}</td>
+        <td>${["draft","pending_approval","paused"].includes(c.status) ? `<button type="button" data-campaign-id="${escapeHTML(c.id)}" data-next-status="draft">إبقاء كمسودة</button>` : "لا يوجد إجراء آمن"}</td>
+      </tr>`).join("")}</tbody></table></div>
+      <p class="muted">الحملات القديمة التي لا تحمل العملة EGP تظهر كما هي للمراجعة ولا يتم تحويلها تلقائيًا.</p>`;
+    target.querySelectorAll("button[data-campaign-id]").forEach(button => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const {error} = await db.from("marketing_campaigns")
+            .update({status:"draft",currency_code:"EGP"})
+            .eq("id",button.dataset.campaignId);
+          if (error) throw error;
+          notify("تم إبقاء الحملة في وضع المسودة.");
+          await renderCampaigns();
+        } catch(error) {
+          notify("تعذر تحديث الحملة: " + error.message);
+          button.disabled = false;
+        }
+      });
+    });
   }
 
   // =========================================
@@ -767,7 +914,11 @@
       </div>`;
 
     try {
-      if (page === "overview") {
+      if (page === "products") {
+        await renderProducts();
+      } else if (page === "campaigns") {
+        await renderCampaigns();
+      } else if (page === "overview") {
         await renderOverview();
       } else if (page === "markets") {
         await renderMarkets();
