@@ -731,7 +731,7 @@
         button.disabled = true;
         try {
           const {error} = await db.from("marketing_campaigns")
-            .update({status:"draft",currency_code:"EGP"})
+            .update({status:"draft"})
             .eq("id",button.dataset.campaignId);
           if (error) throw error;
           notify("تم إبقاء الحملة في وضع المسودة.");
@@ -827,6 +827,70 @@
     renderTable($("profitTable"), rows);
   }
 
+
+  // =========================================
+  // الطلبات - متابعة الطلبات وبنودها
+  // =========================================
+  async function renderOrders() {
+    const [{data: orders, error: ordersError}, {data: items, error: itemsError}] = await Promise.all([
+      db.from("orders").select("id,order_number,external_order_id,source_channel,status,currency_code,subtotal,shipping_amount,discount_amount,total_amount,supplier_cost,ad_cost,other_cost,tracking_number,shipping_provider,created_at,updated_at").order("created_at",{ascending:false}).limit(200),
+      db.from("order_items").select("order_id,product_name,sku,quantity,unit_price,unit_cost,line_total").limit(1000)
+    ]);
+    if (ordersError) throw ordersError;
+    if (itemsError) throw itemsError;
+    const rows = orders || [];
+    const grouped = new Map();
+    (items || []).forEach(item => {
+      if (!grouped.has(item.order_id)) grouped.set(item.order_id, []);
+      grouped.get(item.order_id).push(item);
+    });
+    const view = $("view");
+    view.innerHTML = `
+      <div class="head"><div><h1>${pages.orders}</h1>
+      <p class="muted">متابعة الطلبات الواردة من EasyOrders وغيرها، مع تفاصيل المنتجات والشحن والتكاليف المسجلة.</p></div>
+      <span class="badge">الطلبات: ${rows.length}</span></div>
+      <div class="panel">
+        <label for="orderSearch"><b>بحث برقم الطلب أو رقم الطلب الخارجي أو الحالة</b></label>
+        <input id="orderSearch" type="search" placeholder="اكتب رقم الطلب أو الحالة" style="display:block;width:100%;max-width:520px;margin-top:8px;padding:12px;border:1px solid #d8deea;border-radius:10px">
+        <p class="muted">يتم عرض الحالة كما وصلت من النظام المصدر. لا يتم تغيير حالة الشحن أو التسليم دون تحديث موثوق من مزود الخدمة.</p>
+      </div>
+      <div id="orderRows"></div>`;
+    const target = $("orderRows");
+    const money = (v, currency) => v == null ? "—" : new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v)) + " " + (currency || "");
+    const draw = (query = "") => {
+      const q = query.trim().toLowerCase();
+      const filtered = rows.filter(o => [o.order_number,o.external_order_id,o.status,o.source_channel]
+        .some(v => String(v || "").toLowerCase().includes(q)));
+      if (!filtered.length) {
+        target.innerHTML = '<div class="panel"><p class="muted">لا توجد طلبات مطابقة.</p></div>';
+        return;
+      }
+      target.innerHTML = filtered.map(o => {
+        const orderItems = grouped.get(o.id) || [];
+        return `<div class="panel" style="overflow:auto">
+          <div class="head"><div><h3>${escapeHTML(o.order_number)}</h3>
+          <p class="muted">المصدر: ${escapeHTML(o.source_channel)} • الرقم الخارجي: ${escapeHTML(o.external_order_id || "—")}</p></div>
+          <b>${escapeHTML(o.status)}</b></div>
+          <table><tbody>
+            <tr><th>المنتجات</th><th>SKU</th><th>الكمية</th><th>سعر الوحدة</th><th>تكلفة الوحدة</th><th>الإجمالي</th></tr>
+            ${orderItems.length ? orderItems.map(i => `<tr><td>${escapeHTML(i.product_name)}</td><td>${escapeHTML(i.sku || "—")}</td><td>${i.quantity}</td><td>${money(i.unit_price,o.currency_code)}</td><td>${money(i.unit_cost,o.currency_code)}</td><td>${money(i.line_total,o.currency_code)}</td></tr>`).join("") : '<tr><td colspan="6">لم تصل تفاصيل المنتجات لهذا الطلب.</td></tr>'}
+          </tbody></table>
+          <div class="grid" style="margin-top:12px">
+            <div><small>قيمة المنتجات</small><b>${money(o.subtotal,o.currency_code)}</b></div>
+            <div><small>الشحن</small><b>${money(o.shipping_amount,o.currency_code)}</b></div>
+            <div><small>الخصم</small><b>${money(o.discount_amount,o.currency_code)}</b></div>
+            <div><small>الإجمالي</small><b>${money(o.total_amount,o.currency_code)}</b></div>
+            <div><small>تكلفة المورد المسجلة</small><b>${money(o.supplier_cost,o.currency_code)}</b></div>
+            <div><small>تكلفة الإعلان المسجلة</small><b>${money(o.ad_cost,"EGP")}</b></div>
+          </div>
+          <p class="muted">شركة الشحن: ${escapeHTML(o.shipping_provider || "غير محددة")} • رقم التتبع: ${escapeHTML(o.tracking_number || "غير مسجل")} • تاريخ الإنشاء: ${escapeHTML(o.created_at || "—")}</p>
+        </div>`;
+      }).join("");
+    };
+    $("orderSearch").addEventListener("input", e => draw(e.target.value));
+    draw();
+  }
+
   // =========================================
   // الأقسام الأخرى
   // =========================================
@@ -914,7 +978,9 @@
       </div>`;
 
     try {
-      if (page === "products") {
+      if (page === "orders") {
+        await renderOrders();
+      } else if (page === "products") {
         await renderProducts();
       } else if (page === "campaigns") {
         await renderCampaigns();
