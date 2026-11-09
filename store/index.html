@@ -153,26 +153,35 @@ function filterProducts(query="", category="all"){
   return count;
 }
 function renderCart(){
-  document.getElementById("cartCount").textContent = cartItems.length;
+  const cartCount = document.getElementById("cartCount");
+  const cartContainer = document.getElementById("cartItems");
+  if(cartCount) cartCount.textContent = String(cartItems.length);
+  if(!cartContainer) return;
+
+  cartContainer.replaceChildren();
+
   if(!cartItems.length){
-    cartItems.innerHTML = "السلة فارغة";
-    cartItems.className = "empty";
+    cartContainer.textContent = "السلة فارغة";
+    cartContainer.className = "empty";
     return;
   }
-  cartItems.className = "";
-  cartItems.innerHTML = "";
-  cartItems.forEach((name,index)=>{
+
+  cartContainer.className = "";
+  cartItems.forEach((item,index)=>{
     const row = document.createElement("div");
     row.className = "cart-row";
     const label = document.createElement("span");
-    label.textContent = name;
+    label.textContent = item.name || String(item);
     const remove = document.createElement("button");
     remove.className = "remove";
     remove.type = "button";
     remove.textContent = "حذف";
-    remove.addEventListener("click",()=>{cartItems.splice(index,1);renderCart();});
+    remove.addEventListener("click",()=>{
+      cartItems.splice(index,1);
+      renderCart();
+    });
     row.append(label,remove);
-    cartItems.appendChild(row);
+    cartContainer.appendChild(row);
   });
 }
 document.getElementById("searchBtn").addEventListener("click",()=>{
