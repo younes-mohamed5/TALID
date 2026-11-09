@@ -15,7 +15,8 @@ const db = createClient(SUPABASE_URL, SERVICE_KEY, {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type",
+  "Access-Control-Allow-Headers":
+    "content-type, x-talid-webhook-secret",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
@@ -58,7 +59,7 @@ function normalizeStatus(value: unknown): string {
   return map[status] ?? "pending";
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -67,6 +68,7 @@ Deno.serve(async (req) => {
     return reply({
       service: "TALID EasyOrders Webhook",
       status: "available",
+      version: "3.0.0",
     });
   }
 
@@ -80,11 +82,12 @@ Deno.serve(async (req) => {
     }, 503);
   }
 
-  // EasyOrders webhook URL must include ?token=YOUR_SECRET
-  const requestUrl = new URL(req.url);
-  const suppliedSecret = requestUrl.searchParams.get("token");
+  // Verify the secret sent by EasyOrders in the request header.
+  const suppliedSecret =
+    req.headers.get("x-talid-webhook-secret") ||
+    req.headers.get("secret");
 
-  if (suppliedSecret !== WEBHOOK_SECRET) {
+  if (!suppliedSecret || suppliedSecret !== WEBHOOK_SECRET) {
     return reply({ error: "Unauthorized" }, 401);
   }
 
@@ -130,7 +133,9 @@ Deno.serve(async (req) => {
       order?.updated_at ?? order?.status ?? "received"
     )}`;
 
-  // Save webhook event
+  const now = new Date().toISOString();
+
+  // Save the incoming event.
   const inbox = {
     provider: "easyorders",
     event_type: eventType,
@@ -151,6 +156,8 @@ Deno.serve(async (req) => {
     });
 
   if (inboxError) {
+    console.error("Webhook inbox error:", inboxError.message);
+
     return reply({
       error: "Could not save webhook event",
       details: inboxError.message,
@@ -160,7 +167,10 @@ Deno.serve(async (req) => {
   const customer = order?.customer ?? {};
 
   const status = normalizeStatus(
-    order?.status ?? payload?.status
+    order?.new_status ??
+    order?.status ??
+    payload?.new_status ??
+    payload?.status
   );
 
   const currency = str(
@@ -176,6 +186,23 @@ Deno.serve(async (req) => {
     order?.amount
   );
 
+  const shippingAmount = num(
+    order?.shipping_amount ??
+    order?.shipping ??
+    order?.shipping_cost
+  );
+
+  const discountAmount = num(
+    order?.discount_amount ??
+    order?.discount
+  );
+
+  const subtotal = num(
+    order?.subtotal ??
+    order?.sub_total ??
+    (totalAmount - shippingAmount + discountAmount)
+  );
+
   const marketCode = str(
     order?.market_code ??
     order?.country_code ??
@@ -183,7 +210,7 @@ Deno.serve(async (req) => {
     "EG"
   ).toUpperCase();
 
-  // Find the country in TALID
+  // Find the country.
   let countryId: string | null = null;
 
   const { data: country, error: countryError } = await db
@@ -196,8 +223,6 @@ Deno.serve(async (req) => {
     countryId = country.id;
   }
 
-  // Keep customer details in the order notes.
-  // No assumption is made about the customers table structure.
   const customerDetails = {
     name: str(
       customer?.name ??
@@ -228,17 +253,23 @@ Deno.serve(async (req) => {
     external_order_id: externalId,
     status,
     currency_code: currency,
-    subtotal: totalAmount,
+    subtotal,
+    shipping_amount: shippingAmount,
+    discount_amount: discountAmount,
     total_amount: totalAmount,
+    supplier_cost: 0,
+    ad_cost: 0,
+    other_cost: 0,
     customer_notes: JSON.stringify(customerDetails),
     internal_notes: "Received from EasyOrders webhook",
+    updated_at: now,
   };
 
   if (countryId) {
     orderRow.country_id = countryId;
   }
 
-  // Check whether this EasyOrders order already exists
+  // Find existing order by its external ID.
   const { data: existingOrder, error: lookupError } = await db
     .from("orders")
     .select("id")
@@ -321,26 +352,20 @@ Deno.serve(async (req) => {
     savedOrderId = data.id;
   }
 
-  // Mark webhook event as processed
+  // Mark the event as successfully processed.
   const { error: finishError } = await db
     .from("talid_webhook_events")
     .update({
       processing_status: "processed",
       processed: true,
       error: null,
-      processed_at: new Date().toISOString(),
+      processed_at: now,
     })
     .eq("provider", "easyorders")
     .eq("event_key", eventKey);
 
   if (finishError) {
-    return reply({
-      received: true,
-      order_synced: true,
-      order_id: savedOrderId,
-      warning: "Order saved, but event status update failed",
-      details: finishError.message,
-    }, 200);
+    console.error("Event update error:", finishError.message);
   }
 
   return reply({
@@ -350,5 +375,6 @@ Deno.serve(async (req) => {
     action: existingOrder ? "updated" : "created",
     order_id: savedOrderId,
     external_order_id: externalId,
+    event_type: eventType,
   });
 });
