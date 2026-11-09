@@ -110,6 +110,7 @@ function normalizeOrderItem(item: any) {
     quantity,
     unit_price: unitPrice,
     unit_cost: 0,
+    product_id: null as string | null,
   };
 }
 
@@ -432,6 +433,48 @@ Deno.serve(async (req: Request) => {
       .map(normalizeOrderItem)
       .filter((item) => item.product_name && item.quantity > 0);
 
+    // Match only against catalog records already stored in TALID.
+    // Unknown SKUs remain uncosted; never invent supplier costs.
+    const skus = [...new Set(normalizedItems.map((item) => item.sku).filter(Boolean))];
+    if (skus.length > 0) {
+      const { data: catalog, error: catalogError } = await db
+        .from("products")
+        .select("id,sku,supplier_sku,cost_price")
+        .or(skus.map((sku) => `sku.eq.${String(sku).replace(/[(),]/g, "")},supplier_sku.eq.${String(sku).replace(/[(),]/g, "")}`).join(","));
+      if (catalogError) {
+        await markEventFailed(eventKey, catalogError.message);
+        return reply({ received: true, order_synced: true, items_synced: false,
+          error: "Could not match order items to the TALID catalog",
+          details: catalogError.message }, 500);
+      }
+      const catalogBySku = new Map<string, any>();
+      for (const product of catalog || []) {
+        if (product.sku) catalogBySku.set(String(product.sku), product);
+        if (product.supplier_sku) catalogBySku.set(String(product.supplier_sku), product);
+      }
+      for (const item of normalizedItems) {
+        const match = item.sku ? catalogBySku.get(item.sku) : null;
+        if (match) {
+          item.product_id = match.id;
+          item.unit_cost = num(match.cost_price);
+        }
+      }
+    }
+
+    const supplierCostTotal = normalizedItems.reduce(
+      (sum, item) => sum + item.quantity * item.unit_cost, 0
+    );
+    const { error: supplierCostError } = await db
+      .from("orders")
+      .update({ supplier_cost: supplierCostTotal })
+      .eq("id", savedOrderId);
+    if (supplierCostError) {
+      await markEventFailed(eventKey, supplierCostError.message);
+      return reply({ received: true, order_synced: true, items_synced: false,
+        error: "Could not update matched supplier cost",
+        details: supplierCostError.message }, 500);
+    }
+
     // Remove previous items before inserting the latest snapshot.
     const { error: deleteError } = await db
       .from("order_items")
@@ -455,6 +498,7 @@ Deno.serve(async (req: Request) => {
       // Do not send line_total in the insert.
       const itemRows = normalizedItems.map((item) => ({
         order_id: savedOrderId,
+        product_id: item.product_id,
         product_name: item.product_name,
         sku: item.sku,
         quantity: item.quantity,
