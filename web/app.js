@@ -9,6 +9,7 @@
   let currentPage = "overview";
   let currentUser = null;
   let loginInProgress = false;
+  let navigationReady = false;
 
   const pages = {
     overview: "لوحة التشغيل",
@@ -22,7 +23,6 @@
     settings: "الإعدادات"
   };
 
-  // الجداول الأساسية الموجودة في قاعدة البيانات
   const tables = {
     products: "products",
     orders: "orders",
@@ -30,6 +30,10 @@
     campaigns: "marketing_campaigns",
     activity: "talid_audit_logs"
   };
+
+  // =========================================
+  // أدوات عامة
+  // =========================================
 
   function escapeHTML(value) {
     return String(value ?? "-").replace(/[&<>"']/g, (char) => ({
@@ -46,12 +50,14 @@
     if (!toast) return;
 
     toast.textContent = message;
+    toast.hidden = false;
     toast.style.display = "block";
 
     clearTimeout(notify.timer);
 
     notify.timer = setTimeout(() => {
       toast.style.display = "none";
+      toast.hidden = true;
     }, 4000);
   }
 
@@ -66,11 +72,15 @@
   }
 
   // =========================================
-  // القائمة الجانبية
+  // القائمة الجانبية - إصلاح شامل
   // =========================================
 
   function getSidebar() {
     return $("app")?.querySelector("aside");
+  }
+
+  function isMobileScreen() {
+    return window.matchMedia("(max-width: 760px)").matches;
   }
 
   function closeSidebar() {
@@ -83,22 +93,33 @@
 
     if (menuButton) {
       menuButton.setAttribute("aria-expanded", "false");
+      menuButton.setAttribute("aria-label", "فتح القائمة");
     }
   }
 
-  function toggleSidebar() {
+  function openSidebar() {
     const sidebar = getSidebar();
     const menuButton = $("menu");
 
     if (!sidebar) return;
 
-    const isOpen = sidebar.classList.toggle("open");
+    sidebar.classList.add("open");
 
     if (menuButton) {
-      menuButton.setAttribute(
-        "aria-expanded",
-        String(isOpen)
-      );
+      menuButton.setAttribute("aria-expanded", "true");
+      menuButton.setAttribute("aria-label", "إغلاق القائمة");
+    }
+  }
+
+  function toggleSidebar() {
+    const sidebar = getSidebar();
+
+    if (!sidebar) return;
+
+    if (sidebar.classList.contains("open")) {
+      closeSidebar();
+    } else {
+      openSidebar();
     }
   }
 
@@ -106,11 +127,14 @@
     const menuButton = $("menu");
     const sidebar = getSidebar();
 
-    if (!sidebar) return;
+    if (!sidebar || navigationReady) return;
 
+    navigationReady = true;
+
+    closeSidebar();
+
+    // زر فتح وإغلاق القائمة
     if (menuButton) {
-      menuButton.setAttribute("aria-expanded", "false");
-
       menuButton.onclick = (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -118,15 +142,31 @@
       };
     }
 
+    // إغلاق القائمة عند اختيار أي قسم
+    const navigation = sidebar.querySelector("nav");
+
+    if (navigation) {
+      navigation.addEventListener("click", (event) => {
+        const button = event.target.closest(
+          "button[data-page]"
+        );
+
+        if (!button) return;
+
+        closeSidebar();
+      }, true);
+    }
+
     // إغلاق القائمة عند الضغط خارجها
     document.addEventListener("click", (event) => {
+      if (!isMobileScreen()) return;
       if (!sidebar.classList.contains("open")) return;
 
-      const clickedInsideSidebar = sidebar.contains(event.target);
-      const clickedMenuButton =
-        menuButton && menuButton.contains(event.target);
+      const insideSidebar = sidebar.contains(event.target);
+      const insideMenu = menuButton &&
+        menuButton.contains(event.target);
 
-      if (!clickedInsideSidebar && !clickedMenuButton) {
+      if (!insideSidebar && !insideMenu) {
         closeSidebar();
       }
     });
@@ -138,26 +178,16 @@
       }
     });
 
-    // إغلاق القائمة إذا انتقل المستخدم لشاشة كبيرة
-    if (window.matchMedia) {
-      const media = window.matchMedia("(min-width: 769px)");
-
-      const handleScreenChange = (event) => {
-        if (event.matches) {
-          closeSidebar();
-        }
-      };
-
-      if (media.addEventListener) {
-        media.addEventListener("change", handleScreenChange);
-      } else if (media.addListener) {
-        media.addListener(handleScreenChange);
+    // إغلاق القائمة عند تغيير حجم الشاشة
+    window.addEventListener("resize", () => {
+      if (!isMobileScreen()) {
+        closeSidebar();
       }
-    }
+    });
   }
 
   // =========================================
-  // الاتصال والتحكم
+  // الاتصال بـ Supabase
   // =========================================
 
   async function invokeControl(action) {
@@ -288,7 +318,7 @@
   }
 
   // =========================================
-  // لوحة التشغيل الرئيسية
+  // لوحة التشغيل
   // =========================================
 
   async function renderOverview() {
@@ -314,12 +344,9 @@
         .maybeSingle()
     ]);
 
-    if (runtime.error) {
-      throw runtime.error;
-    }
+    if (runtime.error) throw runtime.error;
 
-    const isRunning =
-      runtime.data?.is_running === true;
+    const isRunning = runtime.data?.is_running === true;
 
     $("notice").textContent = isRunning
       ? "المنصة في وضع التشغيل."
@@ -335,11 +362,7 @@
         </div>
 
         <button id="runControl">
-          ${
-            isRunning
-              ? "إيقاف التشغيل"
-              : "فحص الجاهزية وبدء التشغيل"
-          }
+          ${isRunning ? "إيقاف التشغيل" : "فحص الجاهزية وبدء التشغيل"}
         </button>
       </div>
 
@@ -375,13 +398,8 @@
             markets.length
               ? markets.map(m => `
                 <div class="line">
-                  <span>
-                    ${escapeHTML(m.country_name)}
-                  </span>
-
-                  <b>
-                    ${m.is_enabled ? "مفعلة" : "متوقفة"}
-                  </b>
+                  <span>${escapeHTML(m.country_name)}</span>
+                  <b>${m.is_enabled ? "مفعلة" : "متوقفة"}</b>
                 </div>
               `).join("")
               : `
@@ -407,8 +425,7 @@
 
           <p class="muted">
             TALID تتابع البيانات وتحلل النتائج.
-            لا يتم إنفاق إعلانات أو تنفيذ قرارات مالية
-            دون موافقتك.
+            لا يتم إنفاق إعلانات أو تنفيذ قرارات مالية دون موافقتك.
           </p>
         </div>
       </div>
@@ -416,7 +433,6 @@
 
     $("runControl").onclick = async () => {
       const button = $("runControl");
-
       button.disabled = true;
 
       try {
@@ -424,10 +440,7 @@
           isRunning ? "stop" : "start"
         );
 
-        notify(
-          result.message || "تم إرسال طلب التشغيل."
-        );
-
+        notify(result.message || "تم إرسال طلب التشغيل.");
         await render("overview");
       } catch (error) {
         notify(error.message);
@@ -437,19 +450,18 @@
   }
 
   // =========================================
-  // الدول والأسعار
+  // الأسواق
   // =========================================
 
   async function renderMarkets() {
     const rows = await getRows("talid_markets");
-    const view = $("view");
 
-    view.innerHTML = `
+    $("view").innerHTML = `
       <h1>${pages.markets}</h1>
 
       <div class="panel">
         <p class="muted">
-          بيانات الدول الحالية حسب أعمدة قاعدة البيانات الموجودة.
+          بيانات الدول الحالية حسب قاعدة البيانات.
         </p>
 
         <div id="marketTable"></div>
@@ -460,7 +472,7 @@
   }
 
   // =========================================
-  // التكاملات والجاهزية
+  // التكاملات
   // =========================================
 
   async function renderIntegrations() {
@@ -472,15 +484,10 @@
       getCount("talid_webhook_events")
     ]);
 
-    const view = $("view");
-
-    view.innerHTML = `
+    $("view").innerHTML = `
       <div class="head">
         <h1>${pages.integrations}</h1>
-
-        <button id="readiness">
-          فحص الجاهزية
-        </button>
+        <button id="readiness">فحص الجاهزية</button>
       </div>
 
       <div class="panel">
@@ -500,10 +507,7 @@
       </div>
     `;
 
-    renderTable(
-      $("integrationTable"),
-      integrations
-    );
+    renderTable($("integrationTable"), integrations);
 
     $("readiness").onclick = async () => {
       const button = $("readiness");
@@ -527,14 +531,13 @@
   }
 
   // =========================================
-  // الأرباح والمستحقات
+  // الأرباح
   // =========================================
 
   async function renderProfit() {
     const rows = await getRows("orders");
-    const view = $("view");
 
-    view.innerHTML = `
+    $("view").innerHTML = `
       <h1>${pages.profit}</h1>
 
       <div class="panel">
@@ -552,7 +555,7 @@
   }
 
   // =========================================
-  // الأقسام العامة
+  // الأقسام الأخرى
   // =========================================
 
   async function renderSection(page) {
@@ -572,11 +575,9 @@
     }
 
     const rows = await getRows(table);
-    const view = $("view");
 
-    view.innerHTML = `
+    $("view").innerHTML = `
       <h1>${pages[page]}</h1>
-
       <div id="sectionTable"></div>
     `;
 
@@ -620,7 +621,7 @@
 
     currentPage = page;
 
-    // إغلاق القائمة الجانبية عند اختيار أي قسم
+    // إغلاق القائمة قبل تحميل القسم
     closeSidebar();
 
     $("title").textContent = pages[page];
@@ -659,7 +660,7 @@
   }
 
   // =========================================
-  // التحقق من المستخدم والصلاحيات
+  // التحقق من المستخدم
   // =========================================
 
   async function boot() {
@@ -705,6 +706,9 @@
     $("login").hidden = true;
     $("app").hidden = false;
 
+    // تجهيز القائمة بعد ظهور التطبيق
+    setupSidebar();
+
     await render("overview");
   }
 
@@ -721,10 +725,10 @@
 
     loginInProgress = true;
 
-    const loginButton = $("loginBtn");
+    const button = $("loginBtn");
 
-    if (loginButton) {
-      loginButton.disabled = true;
+    if (button) {
+      button.disabled = true;
     }
 
     $("msg").textContent = "";
@@ -739,9 +743,7 @@
         );
       }
 
-      const {
-        error
-      } = await db.auth.signInWithPassword({
+      const { error } = await db.auth.signInWithPassword({
         email,
         password
       });
@@ -756,14 +758,14 @@
     } finally {
       loginInProgress = false;
 
-      if (loginButton) {
-        loginButton.disabled = false;
+      if (button) {
+        button.disabled = false;
       }
     }
   }
 
   // =========================================
-  // تشغيل المنصة
+  // تشغيل التطبيق
   // =========================================
 
   async function startApp() {
@@ -783,7 +785,7 @@
       cfg.SUPABASE_ANON_KEY
     );
 
-    // معالجة تسجيل الدخول من النموذج
+    // نموذج تسجيل الدخول
     const loginForm = $("loginForm");
 
     if (loginForm) {
@@ -807,25 +809,23 @@
       };
     }
 
-    // التنقل بين الأقسام
-    document.querySelectorAll("nav button").forEach(button => {
-      button.onclick = () => {
+    // أزرار التنقل
+    document.querySelectorAll("nav button[data-page]").forEach(button => {
+      button.onclick = (event) => {
+        event.preventDefault();
+
         const page = button.dataset.page;
 
-        if (page) {
-          render(page);
-        }
+        // الإغلاق فورًا قبل تحميل القسم
+        closeSidebar();
+
+        render(page);
       };
     });
 
-    // إعداد القائمة الجانبية
-    setupSidebar();
-
-    // متابعة حالة جلسة الدخول
     db.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
         currentUser = null;
-
         closeSidebar();
 
         $("login").hidden = false;
