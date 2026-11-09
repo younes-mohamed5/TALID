@@ -80,6 +80,10 @@ Deno.serve(async (req) => {
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   const mode = body?.mode === "sync" ? "sync" : "preview";
+  // Import is locked until the owner reviews the preview and approves a separate sync step.
+  if (mode === "sync") {
+    return json({ error: "Product import is disabled. Run preview first; database changes require a separate owner-approved step.", mode: "preview_only" }, 409);
+  }
 
   try {
     const response = await fetch("https://api.easy-orders.net/api/v1/external-apps/products", {
