@@ -808,25 +808,60 @@
   // =========================================
 
   async function renderProfit() {
-    const rows = await getRows("orders");
-
+    const {data: orders, error} = await db.from("orders")
+      .select("order_number,status,currency_code,subtotal,shipping_amount,discount_amount,total_amount,supplier_cost,ad_cost,other_cost,created_at")
+      .order("created_at",{ascending:false}).limit(1000);
+    if (error) throw error;
+    const rows = orders || [];
+    const groups = new Map();
+    for (const order of rows) {
+      const currency = String(order.currency_code || "غير محددة").toUpperCase();
+      if (!groups.has(currency)) groups.set(currency, {
+        currency, count: 0, delivered: 0, sales: 0, supplier: 0,
+        shipping: 0, adsEGP: 0, other: 0, discounts: 0,
+        missingSupplierCost: 0, statuses: {}
+      });
+      const g = groups.get(currency);
+      g.count++;
+      g.statuses[order.status] = (g.statuses[order.status] || 0) + 1;
+      if (order.status === "delivered") g.delivered++;
+      g.sales += Number(order.subtotal || 0);
+      g.supplier += Number(order.supplier_cost || 0);
+      g.shipping += Number(order.shipping_amount || 0);
+      g.discounts += Number(order.discount_amount || 0);
+      g.other += Number(order.other_cost || 0);
+      // Advertising spend is stored in EGP and is not mixed into foreign currencies.
+      g.adsEGP += Number(order.ad_cost || 0);
+      if (Number(order.supplier_cost || 0) <= 0) g.missingSupplierCost++;
+    }
+    const fmt = (v, currency) => new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(v) + " " + currency;
+    const cards = [...groups.values()].map(g => {
+      const estimated = g.sales - g.supplier - g.shipping - g.discounts - g.other;
+      return `<div class="panel">
+        <h3>السوق بعملة ${escapeHTML(g.currency)}</h3>
+        <div class="grid">
+          <div><small>عدد الطلبات</small><b>${g.count}</b></div>
+          <div><small>طلبات تم تسليمها</small><b>${g.delivered}</b></div>
+          <div><small>قيمة المنتجات المسجلة</small><b>${fmt(g.sales,g.currency)}</b></div>
+          <div><small>تكلفة المورد المسجلة</small><b>${fmt(g.supplier,g.currency)}</b></div>
+          <div><small>الشحن المسجل</small><b>${fmt(g.shipping,g.currency)}</b></div>
+          <div><small>الخصومات</small><b>${fmt(g.discounts,g.currency)}</b></div>
+          <div><small>المصروفات الأخرى</small><b>${fmt(g.other,g.currency)}</b></div>
+          <div><small>إعلانات مسجلة بالجنيه المصري</small><b>${fmt(g.adsEGP,"EGP")}</b></div>
+        </div>
+        <p class="muted">هامش تقديري قبل تكلفة الإعلانات والتحقق من التحصيل: ${fmt(estimated,g.currency)}</p>
+        <p class="muted">${g.missingSupplierCost ? `تنبيه: ${g.missingSupplierCost} طلب/طلبات بدون تكلفة مورد مسجلة؛ النتيجة ليست صافي ربح.` : "تكاليف المورد مسجلة، لكن يجب مطابقة التحصيل والمرتجعات قبل اعتماد الربح المحقق."}</p>
+        <p class="muted">توزيع الحالات: ${escapeHTML(Object.entries(g.statuses).map(([k,v]) => k + ": " + v).join(" • "))}</p>
+      </div>`;
+    }).join("");
     $("view").innerHTML = `
-      <h1>${pages.profit}</h1>
-
-      <div class="panel">
-        <p class="muted">
-          هذه صفحة مراجعة الطلبات المالية.
-          لن نحسب صافي الربح قبل التأكد من أعمدة
-          التكلفة والشحن والإعلان والتحصيل والمرتجعات.
-        </p>
-
-        <div id="profitTable"></div>
-      </div>
-    `;
-
+      <div class="head"><div><h1>${pages.profit}</h1>
+      <p class="muted">تحليل منفصل لكل عملة سوق. لا يتم جمع عملات مختلفة في إجمالي واحد ولا اعتبار التقديرات أرباحًا محققة.</p></div></div>
+      <div class="notice">تنبيه مالي: صافي الربح لا يمكن اعتماده قبل تسجيل تكلفة Taager الفعلية، والتحصيل، والمرتجعات، ومصروفات الإعلان. جميع مصروفات الإعلانات تُراجع بالجنيه المصري.</div>
+      ${cards || '<div class="panel"><p class="muted">لا توجد طلبات مالية مسجلة بعد.</p></div>'}
+      <div class="panel"><h3>تفاصيل الطلبات</h3><div id="profitTable"></div></div>`;
     renderTable($("profitTable"), rows);
   }
-
 
   // =========================================
   // الطلبات - متابعة الطلبات وبنودها
