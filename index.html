@@ -2,133 +2,207 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0B1F44">
-<title>TALID | تليد — أصل عريق، مستقبل بلا حدود</title>
+<meta name="description" content="TALID تليد — تجربة تسوق بهوية عربية ورؤية إقليمية.">
+<title>TALID | تليد — المتجر</title>
 <style>
-:root{--navy:#0B1F44;--navy2:#102b59;--gold:#D4AF37;--cream:#F5E6C8;--white:#fff;--ink:#17243a;--muted:#697386;--line:#e8eaf0}
+:root{--navy:#0B1F44;--navy2:#102b59;--gold:#D4AF37;--white:#fff;--ink:#17243a;--muted:#697386;--line:#e8eaf0}
 *{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f7f8fb;color:var(--ink)}
-a{text-decoration:none;color:inherit}button,input{font:inherit}.top{background:var(--navy);color:#fff;text-align:center;padding:9px 14px;font-size:12px}
+a{text-decoration:none;color:inherit}button,input{font:inherit}
+.top{background:var(--navy);color:#fff;text-align:center;padding:9px 14px;font-size:12px}
 header{background:#fff;position:sticky;top:0;z-index:10;box-shadow:0 3px 18px #0b1f4410}
-.nav{max-width:1180px;margin:auto;padding:15px 20px;display:flex;align-items:center;gap:24px}
-.brand{display:flex;align-items:center;gap:10px;min-width:180px;color:var(--navy)}
-.mark{width:43px;height:43px;border:2px solid var(--gold);border-radius:13px;display:grid;place-items:center;color:var(--gold);font-weight:900;font-size:26px;background:var(--navy);transform:skew(-5deg)}
-.brand strong{font-family:Georgia,serif;font-size:24px;letter-spacing:2px}.brand small{display:block;font-size:13px;letter-spacing:0;font-weight:bold;text-align:right}
-.links{display:flex;gap:22px;align-items:center;font-size:14px;flex:1}.links a:hover{color:#a17b13}
-.search{display:flex;flex:1;max-width:280px;border:1px solid var(--line);border-radius:30px;overflow:hidden;background:#fafafa}
-.search input{width:100%;border:0;outline:0;background:transparent;padding:11px 15px;font-size:13px}.search button{border:0;background:transparent;padding:0 13px;cursor:pointer}
-.cart{border:1px solid var(--gold);color:var(--navy);border-radius:25px;padding:10px 15px;background:white;cursor:pointer;font-weight:bold}
-.hero{background:radial-gradient(circle at 80% 30%,#1d427b 0,#102b59 28%,#0B1F44 68%);color:#fff;overflow:hidden}
-.hero-inner{max-width:1180px;margin:auto;padding:68px 24px 72px;display:grid;grid-template-columns:1.1fr .9fr;gap:35px;align-items:center;min-height:410px}
+.nav{max-width:1180px;margin:auto;padding:15px 20px;display:flex;align-items:center;gap:22px}
+.brand{display:flex;align-items:center;gap:10px;min-width:155px;color:var(--navy)}
+.mark{width:43px;height:43px;border:2px solid var(--gold);border-radius:13px;display:grid;place-items:center;color:var(--gold);font-weight:900;font-size:26px;background:var(--navy)}
+.brand strong{font-family:Georgia,serif;font-size:24px;letter-spacing:2px}.brand small{display:block;font-size:13px;font-weight:bold}
+.links{display:flex;gap:20px;align-items:center;font-size:14px;flex:1}.links a:hover{color:#a17b13}
+.search{display:flex;flex:1;max-width:270px;border:1px solid var(--line);border-radius:30px;overflow:hidden;background:#fafafa}
+.search input{width:100%;min-width:0;border:0;outline:0;background:transparent;padding:11px 15px;font-size:13px}.search button{border:0;background:transparent;padding:0 13px;cursor:pointer}
+.cart{border:1px solid var(--gold);color:var(--navy);border-radius:25px;padding:10px 15px;background:white;cursor:pointer;font-weight:bold;white-space:nowrap}
+.hero{background:radial-gradient(circle at 80% 30%,#1d427b 0,#102b59 28%,#0B1F44 68%);color:#fff}
+.hero-inner{max-width:1180px;margin:auto;padding:65px 24px;display:grid;grid-template-columns:1.1fr .9fr;gap:35px;align-items:center;min-height:390px}
 .eyebrow{color:var(--gold);font-size:13px;letter-spacing:2px;font-weight:bold}
-h1{font-size:clamp(34px,5vw,57px);line-height:1.35;margin:15px 0 12px}
-h1 span{color:var(--gold)}.hero p{color:#e0e6f0;line-height:2;max-width:560px;font-size:16px}
+h1{font-size:clamp(34px,5vw,57px);line-height:1.35;margin:15px 0 12px}h1 span{color:var(--gold)}
+.hero p{color:#e0e6f0;line-height:2;max-width:560px;font-size:16px}
 .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:25px}
 .btn{border:0;border-radius:28px;padding:13px 24px;font-weight:bold;cursor:pointer;display:inline-block}
 .primary{background:linear-gradient(135deg,#f3d778,var(--gold));color:#17243a}.secondary{border:1px solid #ffffff80;color:white;background:transparent}
-.hero-art{min-height:270px;display:grid;place-items:center;position:relative}
-.orbit{width:250px;height:250px;border:1px solid #d4af3780;border-radius:50%;display:grid;place-items:center;box-shadow:0 0 70px #d4af3720,inset 0 0 50px #d4af3710;position:relative}
-.orbit:before,.orbit:after{content:"";position:absolute;border:1px solid #d4af3755;border-radius:50%;transform:rotate(-30deg);width:330px;height:110px}
-.orbit:after{transform:rotate(45deg);width:300px;height:95px}
-.big-t{font-family:Georgia,serif;font-size:160px;font-weight:bold;color:var(--gold);text-shadow:0 5px 0 #8e6710,0 15px 30px #0008;line-height:1}
-.hero-caption{position:absolute;bottom:0;color:#f4d77b;font-size:12px;letter-spacing:3px}
-.trust{max-width:1180px;margin:-24px auto 0;position:relative;padding:0 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.hero-art{min-height:260px;display:grid;place-items:center;position:relative}
+.orbit{width:240px;height:240px;border:1px solid #d4af3780;border-radius:50%;display:grid;place-items:center;box-shadow:0 0 70px #d4af3720,inset 0 0 50px #d4af3710;position:relative}
+.orbit:before,.orbit:after{content:"";position:absolute;border:1px solid #d4af3755;border-radius:50%;transform:rotate(-30deg);width:320px;height:105px}
+.orbit:after{transform:rotate(45deg);width:290px;height:90px}
+.big-t{font-family:Georgia,serif;font-size:150px;font-weight:bold;color:var(--gold);text-shadow:0 5px 0 #8e6710,0 15px 30px #0008;line-height:1}
+.hero-caption{position:absolute;bottom:0;color:#f4d77b;font-size:12px;letter-spacing:2px}
+.trust{max-width:1180px;margin:-22px auto 0;position:relative;padding:0 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .trust-item{background:#fff;border:1px solid var(--line);border-radius:14px;padding:17px;text-align:center;box-shadow:0 8px 25px #0b1f440a}
 .trust-item b{display:block;color:var(--navy);font-size:14px;margin-bottom:5px}.trust-item span{font-size:12px;color:var(--muted)}
-.section{max-width:1180px;margin:58px auto;padding:0 20px}
+.section{max-width:1180px;margin:55px auto;padding:0 20px}
 .section-head{display:flex;align-items:end;justify-content:space-between;margin-bottom:22px;gap:15px}
 .section h2{margin:0;color:var(--navy);font-size:25px}.section-head p{margin:7px 0 0;color:var(--muted);font-size:13px}
 .text-link{color:#94700d;font-weight:bold;font-size:13px}
 .categories{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
-.category{background:#fff;border:1px solid var(--line);border-radius:15px;padding:22px 12px;text-align:center;transition:.2s}
-.category:hover,.product:hover{transform:translateY(-4px);box-shadow:0 12px 30px #0b1f4410}
+.category{background:#fff;border:1px solid var(--line);border-radius:15px;padding:22px 12px;text-align:center;cursor:pointer}
+.category:hover,.product:hover{transform:translateY(-3px);box-shadow:0 12px 30px #0b1f4410}
 .cat-icon{width:55px;height:55px;border-radius:17px;margin:0 auto 12px;display:grid;place-items:center;background:#f7f1df;color:#9a7615;font-size:25px}
 .category b{font-size:14px;color:var(--navy)}
 .products{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .product{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;transition:.2s}
-.product-img{height:185px;background:linear-gradient(145deg,#edf0f5,#faf8f1);display:grid;place-items:center;color:#9a7615;font-size:54px;position:relative}
+.product-img{height:180px;background:linear-gradient(145deg,#edf0f5,#faf8f1);display:grid;place-items:center;color:#9a7615;font-size:54px;position:relative}
 .tag{position:absolute;top:12px;right:12px;background:var(--navy);color:#fff;border-radius:20px;padding:5px 10px;font-size:11px}
 .product-body{padding:15px}.product h3{margin:0 0 9px;font-size:15px;color:var(--navy)}
-.rating{font-size:12px;color:#a17b13;margin-bottom:10px}.price{font-weight:bold;color:var(--navy);font-size:17px}
-.old{color:#9ba2ae;text-decoration:line-through;font-size:12px;margin-right:7px;font-weight:normal}
+.rating{font-size:12px;color:#a17b13;margin-bottom:10px}.price{font-weight:bold;color:var(--navy);font-size:16px}
 .add{width:100%;margin-top:13px;background:var(--navy);color:white;border-radius:9px;padding:10px;border:0;cursor:pointer}
-.promo{max-width:1140px;margin:60px auto;padding:0 20px}.promo-inner{border-radius:20px;background:linear-gradient(110deg,#0B1F44,#183b70);color:#fff;padding:34px;display:flex;justify-content:space-between;align-items:center;gap:20px}
+.add:disabled{opacity:.55;cursor:not-allowed}
+.promo{max-width:1140px;margin:55px auto;padding:0 20px}.promo-inner{border-radius:20px;background:linear-gradient(110deg,#0B1F44,#183b70);color:#fff;padding:34px;display:flex;justify-content:space-between;align-items:center;gap:20px}
 .promo h2{margin:0 0 8px;color:var(--gold)}.promo p{margin:0;color:#dce4f2;line-height:1.8;font-size:14px}
 footer{background:#081832;color:#fff;margin-top:65px;padding:42px 20px 20px}
-.footer-inner{max-width:1140px;margin:auto;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:28px}
+.footer-inner{max-width:1140px;margin:auto;display:grid;grid-template-columns:2fr 1fr 1fr;gap:28px}
 footer h3{color:var(--gold);margin-top:0;font-size:15px}footer p,footer a{font-size:13px;color:#c7d0df;line-height:2}
 .copyright{max-width:1140px;margin:25px auto 0;border-top:1px solid #ffffff20;padding-top:17px;text-align:center;color:#aeb9ca;font-size:12px}
-.toast{position:fixed;bottom:20px;left:20px;background:#102b59;color:#fff;padding:13px 18px;border-radius:12px;box-shadow:0 8px 25px #0003;display:none;z-index:20}
-@media(max-width:850px){.nav{flex-wrap:wrap;gap:12px}.links{order:3;width:100%;overflow:auto;flex:none;padding:8px 0}.search{max-width:none;flex:1}.hero-inner{grid-template-columns:1fr;text-align:center;padding-top:48px}.hero p{margin:auto}.actions{justify-content:center}.hero-art{min-height:230px}.orbit{width:190px;height:190px}.big-t{font-size:125px}.orbit:before{width:250px}.orbit:after{width:230px}.trust{grid-template-columns:repeat(2,1fr)}.categories{grid-template-columns:repeat(3,1fr)}.products{grid-template-columns:repeat(2,1fr)}.footer-inner{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:480px){.brand{min-width:135px}.brand strong{font-size:20px}.mark{width:38px;height:38px}.cart{padding:9px 11px}.hero-inner{padding:42px 18px 58px}.hero p{font-size:14px}.trust{gap:8px}.trust-item{padding:13px 7px}.trust-item b{font-size:12px}.trust-item span{font-size:10px}.section{margin:43px auto}.section h2{font-size:21px}.categories{grid-template-columns:repeat(2,1fr)}.products{gap:10px}.product-img{height:140px}.product-body{padding:11px}.product h3{font-size:13px}.promo-inner{display:block;text-align:center;padding:27px 20px}.promo .btn{margin-top:18px}.footer-inner{grid-template-columns:1fr 1fr;gap:18px}}
+.toast{position:fixed;bottom:20px;left:20px;background:#102b59;color:#fff;padding:13px 18px;border-radius:12px;box-shadow:0 8px 25px #0003;display:none;z-index:30;max-width:90vw}
+.cart-panel{position:fixed;inset:0;background:#0007;z-index:25;display:none;align-items:flex-end;justify-content:center}
+.cart-panel.open{display:flex}.cart-box{background:#fff;width:min(600px,100%);max-height:80vh;overflow:auto;border-radius:20px 20px 0 0;padding:22px}
+.cart-head{display:flex;justify-content:space-between;align-items:center}.cart-head h2{margin:0;color:var(--navy)}
+.close{border:0;background:#f0f2f6;border-radius:50%;width:38px;height:38px;cursor:pointer}
+.cart-row{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
+.remove{border:0;background:none;color:#a33;cursor:pointer}
+.empty{text-align:center;color:var(--muted);padding:25px}
+.notice{font-size:12px;color:#697386;line-height:1.8;margin-top:12px}
+@media(max-width:850px){.nav{flex-wrap:wrap;gap:12px}.links{order:3;width:100%;overflow:auto;flex:none;padding:8px 0}.search{max-width:none;flex:1}.hero-inner{grid-template-columns:1fr;text-align:center;padding-top:45px}.hero p{margin:auto}.actions{justify-content:center}.hero-art{min-height:220px}.orbit{width:185px;height:185px}.big-t{font-size:120px}.orbit:before{width:245px}.orbit:after{width:225px}.trust{grid-template-columns:repeat(2,1fr)}.categories{grid-template-columns:repeat(3,1fr)}.products{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.brand{min-width:120px}.brand strong{font-size:20px}.mark{width:38px;height:38px}.cart{padding:9px 11px}.hero-inner{padding:40px 18px 55px}.hero p{font-size:14px}.trust{gap:8px}.trust-item{padding:13px 7px}.trust-item b{font-size:12px}.trust-item span{font-size:10px}.section{margin:42px auto}.section h2{font-size:21px}.categories{grid-template-columns:repeat(2,1fr)}.products{gap:10px}.product-img{height:135px}.product-body{padding:11px}.product h3{font-size:13px}.promo-inner{display:block;text-align:center;padding:27px 20px}.promo .btn{margin-top:18px}.footer-inner{grid-template-columns:1fr 1fr;gap:18px}}
 </style>
 </head>
 <body>
-<div class="top">شحن إلى مناطق التغطية المتاحة • تسوق بثقة مع TALID</div>
+<div class="top">تجربة متجر TALID التجريبية — الطلبات الفعلية غير مفعّلة بعد</div>
 <header>
-  <nav class="nav">
-    <a class="brand" href="#"><span class="mark">T</span><span><strong>TALID</strong><small>تليد</small></span></a>
-    <div class="links"><a href="#">الرئيسية</a><a href="#categories">الأقسام</a><a href="#products">المنتجات</a><a href="#about">عن تليد</a><a href="#contact">تواصل معنا</a></div>
-    <label class="search"><input id="searchInput" placeholder="ابحث عن منتج..." aria-label="ابحث عن منتج"><button onclick="searchProducts()">⌕</button></label>
-    <button class="cart" onclick="showCart()">🛒 السلة (<span id="cartCount">0</span>)</button>
-  </nav>
+<nav class="nav">
+<a class="brand" href="#"><span class="mark">T</span><span><strong>TALID</strong><small>تليد</small></span></a>
+<div class="links"><a href="#">الرئيسية</a><a href="#categories">الأقسام</a><a href="#products">المنتجات</a><a href="#about">عن تليد</a><a href="#contact">تواصل معنا</a></div>
+<label class="search"><input id="searchInput" placeholder="ابحث عن منتج..." aria-label="ابحث عن منتج"><button type="button" id="searchBtn" aria-label="بحث">⌕</button></label>
+<button class="cart" type="button" id="cartBtn">🛒 السلة (<span id="cartCount">0</span>)</button>
+</nav>
 </header>
 <main>
-<section class="hero">
- <div class="hero-inner">
-  <div>
-   <div class="eyebrow">TALID • HERITAGE • AMBITION • INNOVATION</div>
-   <h1>اختيارات مميزة<br><span>بلمسة تليد</span></h1>
-   <p>اكتشف تجربة تسوق تجمع بين الاختيار الذكي والجودة والقيمة. وجهتك لمنتجات مختارة بعناية، وتجربة بسيطة من أول زيارة حتى إتمام طلبك.</p>
-   <div class="actions"><a class="btn primary" href="#products">اكتشف المنتجات</a><a class="btn secondary" href="#about">تعرف على تليد</a></div>
-  </div>
-  <div class="hero-art"><div class="orbit"><div class="big-t">T</div></div><div class="hero-caption">أصل عريق • مستقبل بلا حدود</div></div>
- </div>
-</section>
+<section class="hero"><div class="hero-inner">
+<div><div class="eyebrow">TALID • HERITAGE • AMBITION • INNOVATION</div>
+<h1>اختيارات مميزة<br><span>بلمسة تليد</span></h1>
+<p>اكتشف تجربة تسوق تجمع بين الاختيار الذكي والجودة والقيمة. وجهتك لمنتجات مختارة بعناية، وتجربة بسيطة من أول زيارة حتى إتمام طلبك.</p>
+<div class="actions"><a class="btn primary" href="#products">اكتشف المنتجات</a><a class="btn secondary" href="#about">تعرف على تليد</a></div></div>
+<div class="hero-art"><div class="orbit"><div class="big-t">T</div></div><div class="hero-caption">أصل عريق • مستقبل بلا حدود</div></div>
+</div></section>
 <div class="trust">
- <div class="trust-item"><b>اختيارات منتقاة</b><span>منتجات نعرضها بعناية</span></div>
- <div class="trust-item"><b>تجربة سهلة</b><span>تصفح واطلب ببساطة</span></div>
- <div class="trust-item"><b>دعم ومتابعة</b><span>نحن هنا لمساعدتك</span></div>
- <div class="trust-item"><b>توسع إقليمي</b><span>رؤية تتجاوز الحدود</span></div>
+<div class="trust-item"><b>اختيارات منتقاة</b><span>منتجات نعرضها بعناية</span></div>
+<div class="trust-item"><b>تجربة سهلة</b><span>تصفح واضح وبسيط</span></div>
+<div class="trust-item"><b>دعم ومتابعة</b><span>قنوات التواصل قريبًا</span></div>
+<div class="trust-item"><b>توسع إقليمي</b><span>رؤية تتجاوز الحدود</span></div>
 </div>
 <section class="section" id="categories">
- <div class="section-head"><div><h2>تسوق حسب القسم</h2><p>ابدأ من القسم الأقرب لاحتياجاتك</p></div><a class="text-link" href="#products">عرض المنتجات ←</a></div>
- <div class="categories">
-  <a class="category" href="#products"><div class="cat-icon">✦</div><b>العناية والجمال</b></a>
-  <a class="category" href="#products"><div class="cat-icon">⌂</div><b>المنزل والمعيشة</b></a>
-  <a class="category" href="#products"><div class="cat-icon">◈</div><b>الإلكترونيات</b></a>
-  <a class="category" href="#products"><div class="cat-icon">◇</div><b>الأزياء والإكسسوارات</b></a>
-  <a class="category" href="#products"><div class="cat-icon">✧</div><b>الأكثر تميزًا</b></a>
- </div>
-</section>
+<div class="section-head"><div><h2>تسوق حسب القسم</h2><p>اختر القسم الأقرب لاحتياجاتك</p></div></div>
+<div class="categories">
+<button class="category" data-category="beauty"><div class="cat-icon">✦</div><b>العناية والجمال</b></button>
+<button class="category" data-category="home"><div class="cat-icon">⌂</div><b>المنزل والمعيشة</b></button>
+<button class="category" data-category="tech"><div class="cat-icon">◈</div><b>الإلكترونيات</b></button>
+<button class="category" data-category="fashion"><div class="cat-icon">◇</div><b>الأزياء والإكسسوارات</b></button>
+<button class="category" data-category="all"><div class="cat-icon">✧</div><b>كل المنتجات</b></button>
+</div></section>
 <section class="section" id="products">
- <div class="section-head"><div><h2>منتجات مختارة</h2><p>نماذج تجريبية لتصميم بطاقات المنتجات</p></div><span class="text-link">قريبًا: كتالوج تليد</span></div>
- <div class="products" id="productGrid">
-  <article class="product" data-name="سيروم العناية بالرموش"><div class="product-img">✦<span class="tag">اختيار مميز</span></div><div class="product-body"><h3>سيروم العناية بالرموش</h3><div class="rating">★★★★★ <span style="color:#9299a6">تجريبي</span></div><div class="price">135 ج.م</div><button class="add" onclick="addToCart('سيروم العناية بالرموش')">أضف إلى السلة</button></div></article>
-  <article class="product" data-name="منظم المنزل العملي"><div class="product-img">⌂<span class="tag">عملي</span></div><div class="product-body"><h3>منظم المنزل العملي</h3><div class="rating">★★★★★ <span style="color:#9299a6">تجريبي</span></div><div class="price">السعر يحدد لاحقًا</div><button class="add" onclick="addToCart('منظم المنزل العملي')">أضف إلى السلة</button></div></article>
-  <article class="product" data-name="إكسسوار يومي أنيق"><div class="product-img">◇</div><div class="product-body"><h3>إكسسوار يومي أنيق</h3><div class="rating">★★★★★ <span style="color:#9299a6">تجريبي</span></div><div class="price">السعر يحدد لاحقًا</div><button class="add" onclick="addToCart('إكسسوار يومي أنيق')">أضف إلى السلة</button></div></article>
-  <article class="product" data-name="قطعة تقنية ذكية"><div class="product-img">◈</div><div class="product-body"><h3>قطعة تقنية ذكية</h3><div class="rating">★★★★★ <span style="color:#9299a6">تجريبي</span></div><div class="price">السعر يحدد لاحقًا</div><button class="add" onclick="addToCart('قطعة تقنية ذكية')">أضف إلى السلة</button></div></article>
- </div>
+<div class="section-head"><div><h2>منتجات مختارة</h2><p>بيانات عرض تجريبية — سيتم ربط الكتالوج بقاعدة البيانات بعد مراجعة الحقول</p></div><span class="text-link">كتالوج تليد</span></div>
+<div class="products" id="productGrid">
+<article class="product" data-name="سيروم العناية بالرموش" data-category="beauty"><div class="product-img">✦<span class="tag">اختيار مميز</span></div><div class="product-body"><h3>سيروم العناية بالرموش</h3><div class="rating">بيانات تجريبية</div><div class="price">سعر غير معتمد</div><button class="add" disabled>الطلب غير متاح حاليًا</button></div></article>
+<article class="product" data-name="منظم المنزل العملي" data-category="home"><div class="product-img">⌂</div><div class="product-body"><h3>منظم المنزل العملي</h3><div class="rating">بيانات تجريبية</div><div class="price">سعر غير معتمد</div><button class="add" disabled>الطلب غير متاح حاليًا</button></div></article>
+<article class="product" data-name="إكسسوار يومي أنيق" data-category="fashion"><div class="product-img">◇</div><div class="product-body"><h3>إكسسوار يومي أنيق</h3><div class="rating">بيانات تجريبية</div><div class="price">سعر غير معتمد</div><button class="add" disabled>الطلب غير متاح حاليًا</button></div></article>
+<article class="product" data-name="قطعة تقنية ذكية" data-category="tech"><div class="product-img">◈</div><div class="product-body"><h3>قطعة تقنية ذكية</h3><div class="rating">بيانات تجريبية</div><div class="price">سعر غير معتمد</div><button class="add" disabled>الطلب غير متاح حاليًا</button></div></article>
+</div><p class="notice">تنبيه: هذه نسخة واجهة أولية للعرض فقط. لا يتم تسجيل طلبات أو تحصيل مدفوعات أو إرسال بيانات إلى Taager أو EasyOrders في هذه المرحلة.</p>
 </section>
-<section class="promo" id="about"><div class="promo-inner"><div><h2>تليد — أصل عريق، مستقبل بلا حدود</h2><p>نبني تجربة تجارة إلكترونية عصرية بهوية عربية ورؤية إقليمية.<br>هذه النسخة نموذج تصميم أولي، وسيتم ربط بيانات المنتجات والطلبات بعد اعتماد مصادرها.</p></div><a class="btn primary" href="#contact">تواصل معنا</a></div></section>
+<section class="promo" id="about"><div class="promo-inner"><div><h2>تليد — أصل عريق، مستقبل بلا حدود</h2><p>نبني تجربة تجارة إلكترونية عصرية بهوية عربية ورؤية إقليمية.<br>سيتم تفعيل بيانات المنتجات والطلبات بعد اعتماد قاعدة البيانات والتكاملات.</p></div><a class="btn primary" href="#contact">تواصل معنا</a></div></section>
 </main>
-<footer id="contact">
- <div class="footer-inner">
-  <div><h3>TALID | تليد</h3><p>أصل عريق. مستقبل بلا حدود.<br>علامة تجارية برؤية عصرية وتجربة تسوق واضحة.</p></div>
-  <div><h3>روابط سريعة</h3><p><a href="#">الرئيسية</a><br><a href="#categories">الأقسام</a><br><a href="#products">المنتجات</a></p></div>
-  <div><h3>خدمة العملاء</h3><p>سيتم إضافة قنوات التواصل<br>وسياسة الاستبدال والشحن<br>بعد اعتماد بيانات التشغيل.</p></div>
-  <div><h3>تابع تليد</h3><p>Facebook<br>Instagram<br>WhatsApp Business — قريبًا</p></div>
- </div>
- <div class="copyright">© 2026 TALID. جميع الحقوق محفوظة.</div>
-</footer>
-<div class="toast" id="toast"></div>
+<footer id="contact"><div class="footer-inner">
+<div><h3>TALID | تليد</h3><p>أصل عريق. مستقبل بلا حدود.<br>علامة تجارية برؤية عصرية وتجربة تسوق واضحة.</p></div>
+<div><h3>روابط سريعة</h3><p><a href="#">الرئيسية</a><br><a href="#categories">الأقسام</a><br><a href="#products">المنتجات</a></p></div>
+<div><h3>خدمة العملاء</h3><p>سيتم إضافة قنوات التواصل<br>وسياسات الشحن والاستبدال<br>بعد اعتماد بيانات التشغيل.</p></div>
+</div><div class="copyright">© 2026 TALID. جميع الحقوق محفوظة.</div></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="cart-panel" id="cartPanel" role="dialog" aria-modal="true" aria-labelledby="cartTitle">
+<div class="cart-box"><div class="cart-head"><h2 id="cartTitle">سلة التسوق</h2><button class="close" id="closeCart" aria-label="إغلاق">✕</button></div><div id="cartItems" class="empty">السلة فارغة</div><p class="notice">السلة للعرض التجريبي فقط، ولا يمكن إرسال طلب حقيقي حاليًا.</p></div>
+</div>
 <script>
-let cart=[];
-function notify(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>t.style.display='none',2400)}
-function addToCart(name){cart.push(name);document.getElementById('cartCount').textContent=cart.length;notify('تمت إضافة المنتج إلى السلة التجريبية')}
-function showCart(){if(!cart.length){notify('السلة فارغة حاليًا');return}notify('السلة التجريبية: '+cart.length+' منتج')}
-function searchProducts(){const q=document.getElementById('searchInput').value.trim().toLowerCase();let shown=0;document.querySelectorAll('.product').forEach(p=>{const ok=p.dataset.name.toLowerCase().includes(q);p.style.display=ok?'':'none';if(ok)shown++});notify(q?(shown?'تم العثور على '+shown+' منتج':'لا توجد نتائج مطابقة'):'اكتب اسم المنتج للبحث')}
-document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')searchProducts()});
+"use strict";
+const toast = document.getElementById("toast");
+const searchInput = document.getElementById("searchInput");
+const cartPanel = document.getElementById("cartPanel");
+const cartItems = [];
+let toastTimer;
+function notify(message){
+  toast.textContent = message;
+  toast.style.display = "block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{toast.style.display="none";},2500);
+}
+function filterProducts(query="", category="all"){
+  const q = query.trim().toLocaleLowerCase("ar");
+  let count = 0;
+  document.querySelectorAll(".product").forEach(card=>{
+    const name = (card.dataset.name || "").toLocaleLowerCase("ar");
+    const categoryMatch = category === "all" || card.dataset.category === category;
+    const textMatch = !q || name.includes(q);
+    const visible = categoryMatch && textMatch;
+    card.hidden = !visible;
+    if(visible) count++;
+  });
+  return count;
+}
+function renderCart(){
+  document.getElementById("cartCount").textContent = cartItems.length;
+  if(!cartItems.length){
+    cartItems.innerHTML = "السلة فارغة";
+    cartItems.className = "empty";
+    return;
+  }
+  cartItems.className = "";
+  cartItems.innerHTML = "";
+  cartItems.forEach((name,index)=>{
+    const row = document.createElement("div");
+    row.className = "cart-row";
+    const label = document.createElement("span");
+    label.textContent = name;
+    const remove = document.createElement("button");
+    remove.className = "remove";
+    remove.type = "button";
+    remove.textContent = "حذف";
+    remove.addEventListener("click",()=>{cartItems.splice(index,1);renderCart();});
+    row.append(label,remove);
+    cartItems.appendChild(row);
+  });
+}
+document.getElementById("searchBtn").addEventListener("click",()=>{
+  const count = filterProducts(searchInput.value);
+  notify(searchInput.value.trim() ? `نتائج البحث: ${count}` : "اكتب اسم المنتج للبحث");
+});
+searchInput.addEventListener("keydown",event=>{
+  if(event.key==="Enter"){
+    const count=filterProducts(searchInput.value);
+    notify(`نتائج البحث: ${count}`);
+  }
+});
+document.querySelectorAll(".category").forEach(button=>{
+  button.addEventListener("click",()=>{
+    const count=filterProducts(searchInput.value,button.dataset.category);
+    notify(`المنتجات المعروضة: ${count}`);
+    document.getElementById("products").scrollIntoView({behavior:"smooth"});
+  });
+});
+document.getElementById("cartBtn").addEventListener("click",()=>{
+  renderCart();
+  cartPanel.classList.add("open");
+});
+document.getElementById("closeCart").addEventListener("click",()=>cartPanel.classList.remove("open"));
+cartPanel.addEventListener("click",event=>{
+  if(event.target===cartPanel) cartPanel.classList.remove("open");
+});
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape") cartPanel.classList.remove("open");
+});
 </script>
 </body>
 </html>
