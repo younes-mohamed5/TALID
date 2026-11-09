@@ -449,6 +449,85 @@
     };
   }
 
+
+  // =========================================
+  // كتالوج المنتجات - عرض السجلات الفعلية فقط
+  // =========================================
+  async function renderProducts() {
+    const rows = await db.from("products")
+      .select("id,sku,supplier_sku,supplier_product_id,name_ar,name_en,supplier_name,cost_price,sale_price,currency_code,stock_status,status,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(200);
+    if (rows.error) throw rows.error;
+    const products = rows.data || [];
+    const view = $("view");
+    view.innerHTML = `
+      <div class="head">
+        <div><h1>${pages.products}</h1>
+        <p class="muted">عرض كتالوج المنتجات المحفوظ حاليًا في قاعدة البيانات، مع كود المورد والتكلفة والسعر.</p></div>
+        <span class="badge">عدد المنتجات: ${products.length}</span>
+      </div>
+      <div class="panel">
+        <label for="productSearch"><b>بحث بالاسم أو SKU / Taager Code</b></label>
+        <input id="productSearch" type="search" placeholder="اكتب اسم المنتج أو الكود" style="display:block;width:100%;max-width:520px;margin-top:8px;padding:12px;border:1px solid #d8deea;border-radius:10px">
+        <p class="muted">يمكنك معاينة كتالوج EasyOrders الآن. المعاينة للقراءة فقط ولا تضيف أو تعدل أي منتج.</p>
+        <button id="easyOrdersPreview" type="button">معاينة منتجات EasyOrders</button>
+        <div id="easyOrdersPreviewResult" aria-live="polite" style="margin-top:12px"></div>
+      </div>
+      <div id="productRows"></div>`;
+    const target = $("productRows");
+    const draw = (query = "") => {
+      const q = query.trim().toLowerCase();
+      const filtered = products.filter(p => [p.name_ar,p.name_en,p.sku,p.supplier_sku,p.supplier_product_id]
+        .some(v => String(v || "").toLowerCase().includes(q)));
+      if (!filtered.length) {
+        target.innerHTML = '<div class="panel"><p class="muted">لا توجد منتجات مطابقة. إذا كان الكتالوج فارغًا، فهذا يعني أن مزامنة Taager لم تُنفذ بعد.</p></div>';
+        return;
+      }
+      const fmt = v => v == null ? "غير مسجل" : new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v));
+      target.innerHTML = `<div class="panel" style="overflow:auto"><table>
+        <thead><tr><th>المنتج</th><th>SKU</th><th>كود المورد</th><th>المورد</th><th>التكلفة</th><th>السعر</th><th>العملة</th><th>المخزون</th><th>الحالة</th></tr></thead>
+        <tbody>${filtered.map(p => `<tr>
+          <td>${escapeHTML(p.name_ar || p.name_en || "بدون اسم")}</td>
+          <td>${escapeHTML(p.sku || "غير مسجل")}</td>
+          <td>${escapeHTML(p.supplier_sku || p.supplier_product_id || "غير مسجل")}</td>
+          <td>${escapeHTML(p.supplier_name || "غير محدد")}</td>
+          <td>${fmt(p.cost_price)}</td><td>${fmt(p.sale_price)}</td>
+          <td>${escapeHTML(p.currency_code || "غير محددة")}</td>
+          <td>${escapeHTML(p.stock_status || "غير محدد")}</td>
+          <td>${escapeHTML(p.status || "غير محدد")}</td>
+        </tr>`).join("")}</tbody></table></div>`;
+    };
+    $("productSearch").addEventListener("input", e => draw(e.target.value));
+    draw();
+
+    $("easyOrdersPreview").addEventListener("click", async () => {
+      const button = $("easyOrdersPreview");
+      const resultBox = $("easyOrdersPreviewResult");
+      button.disabled = true;
+      resultBox.innerHTML = '<p class="muted">جارٍ الاتصال بـ EasyOrders وقراءة الكتالوج...</p>';
+      try {
+        const { data, error } = await db.functions.invoke("easyorders-catalog-sync", { body: { mode: "preview" } });
+        if (error) {
+          let message = error.message || "تعذر تنفيذ المعاينة";
+          if (error.context && typeof error.context.json === "function") {
+            try { const details = await error.context.json(); message = details.error || details.message || message; } catch (_) {}
+          }
+          throw new Error(message);
+        }
+        if (data?.error) throw new Error(data.error);
+        const items = Array.isArray(data?.preview) ? data.preview : [];
+        const rowsHtml = items.map(item => '<tr><td>' + escapeHTML(item.name || "بدون اسم") + '</td><td>' + escapeHTML(item.sku || "—") + '</td><td>' + escapeHTML(item.taager_code || "—") + '</td><td>' + escapeHTML(item.price ?? "—") + '</td><td>' + escapeHTML(item.quantity ?? "—") + '</td></tr>').join("");
+        resultBox.innerHTML = '<div class="notice">استجابة EasyOrders: ' + Number(data.fetched || 0) + ' منتج. هذه معاينة فقط؛ لم يتم حفظ أو تعديل أي منتج.</div>' + (items.length ? '<div style="overflow:auto"><table><thead><tr><th>المنتج</th><th>SKU</th><th>Taager Code</th><th>السعر</th><th>الكمية</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' : '<p class="muted">' + escapeHTML(data.message || "لم تُرجع الواجهة منتجات في المعاينة.") + '</p>');
+        notify("اكتملت معاينة EasyOrders دون تعديل قاعدة البيانات.");
+      } catch (error) {
+        resultBox.innerHTML = '<div class="notice">' + escapeHTML(error.message) + '</div>';
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
   // =========================================
   // الأسواق
   // =========================================
@@ -597,6 +676,102 @@
     }
   }
 
+
+  // =========================================
+  // الحملات - إنشاء مسودات ومراجعة الميزانية بالجنيه
+  // =========================================
+  async function renderCampaigns() {
+    const [campaignResult, countryResult] = await Promise.all([
+      db.from("marketing_campaigns").select("id,name,platform,country_id,status,budget,currency_code,start_at,end_at,created_at").order("created_at",{ascending:false}).limit(200),
+      db.from("countries").select("id,code,name_ar,currency_code").order("code")
+    ]);
+    if (campaignResult.error) throw campaignResult.error;
+    if (countryResult.error) throw countryResult.error;
+    const campaigns = campaignResult.data || [];
+    const countries = countryResult.data || [];
+    const countryMap = new Map(countries.map(c => [c.id,c]));
+    const view = $("view");
+    view.innerHTML = `
+      <div class="head"><div><h1>${pages.campaigns}</h1>
+      <p class="muted">إنشاء مسودات الحملات ومراجعة ميزانياتها. جميع ميزانيات ومصروفات الحملات تُسجل بالجنيه المصري (EGP).</p></div>
+      <span class="badge">لا نشر ولا إنفاق تلقائي</span></div>
+      <div class="panel">
+        <h3>إنشاء حملة — مسودة للمراجعة فقط</h3>
+        <form id="campaignForm" style="display:grid;gap:10px">
+          <input id="campaignName" required maxlength="120" placeholder="اسم الحملة">
+          <select id="campaignPlatform" required>
+            <option value="meta">Meta (Facebook / Instagram)</option>
+            <option value="other">منصة أخرى</option>
+          </select>
+          <select id="campaignCountry" required>
+            <option value="">اختر السوق المستهدف</option>
+            ${countries.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name_ar)} — ${escapeHTML(c.code)}</option>`).join("")}
+          </select>
+          <label for="campaignBudget">الميزانية بالجنيه المصري (EGP)</label>
+          <input id="campaignBudget" type="number" min="0" step="0.01" required placeholder="0.00">
+          <button id="saveCampaign" type="submit">حفظ كمسودة</button>
+        </form>
+        <p class="muted">حفظ المسودة لا ينشئ إعلانًا ولا يربط بطاقة دفع ولا ينفق أي أموال.</p>
+      </div>
+      <div class="panel"><h3>الحملات المسجلة</h3><div id="campaignRows"></div></div>`;
+    $("campaignForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = $("saveCampaign");
+      button.disabled = true;
+      try {
+        const budget = Number($("campaignBudget").value);
+        if (!Number.isFinite(budget) || budget < 0) throw new Error("أدخل ميزانية صحيحة بالجنيه المصري.");
+        const {error} = await db.from("marketing_campaigns").insert({
+          name: $("campaignName").value.trim(),
+          platform: $("campaignPlatform").value,
+          country_id: $("campaignCountry").value,
+          status: "draft",
+          budget,
+          currency_code: "EGP",
+          content: {approval_required: true, publishing_enabled: false}
+        });
+        if (error) throw error;
+        notify("تم حفظ الحملة كمسودة بالجنيه المصري. لم يتم نشر إعلان.");
+        await renderCampaigns();
+      } catch (error) {
+        notify("تعذر حفظ المسودة: " + error.message);
+        button.disabled = false;
+      }
+    });
+    const target = $("campaignRows");
+    if (!campaigns.length) {
+      target.innerHTML = '<p class="muted">لا توجد حملات مسجلة حتى الآن.</p>';
+      return;
+    }
+    const fmt = v => v == null ? "غير محددة" : new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP"}).format(Number(v));
+    target.innerHTML = `<div style="overflow:auto"><table>
+      <thead><tr><th>الحملة</th><th>المنصة</th><th>السوق</th><th>الميزانية</th><th>العملة</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+      <tbody>${campaigns.map(c => `<tr>
+        <td>${escapeHTML(c.name)}</td><td>${escapeHTML(c.platform)}</td>
+        <td>${escapeHTML(countryMap.get(c.country_id)?.name_ar || "غير محدد")}</td>
+        <td>${fmt(c.budget)}</td><td>${escapeHTML(c.currency_code || "غير مسجلة")}</td>
+        <td>${escapeHTML(c.status)}</td>
+        <td>${["draft","pending_approval","paused"].includes(c.status) ? `<button type="button" data-campaign-id="${escapeHTML(c.id)}" data-next-status="draft">إبقاء كمسودة</button>` : "لا يوجد إجراء آمن"}</td>
+      </tr>`).join("")}</tbody></table></div>
+      <p class="muted">الحملات القديمة التي لا تحمل العملة EGP تظهر كما هي للمراجعة ولا يتم تحويلها تلقائيًا.</p>`;
+    target.querySelectorAll("button[data-campaign-id]").forEach(button => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const {error} = await db.from("marketing_campaigns")
+            .update({status:"draft"})
+            .eq("id",button.dataset.campaignId);
+          if (error) throw error;
+          notify("تم إبقاء الحملة في وضع المسودة.");
+          await renderCampaigns();
+        } catch(error) {
+          notify("تعذر تحديث الحملة: " + error.message);
+          button.disabled = false;
+        }
+      });
+    });
+  }
+
   // =========================================
   // التكاملات
   // =========================================
@@ -661,23 +836,122 @@
   // =========================================
 
   async function renderProfit() {
-    const rows = await getRows("orders");
-
+    const {data: orders, error} = await db.from("orders")
+      .select("order_number,status,currency_code,subtotal,shipping_amount,discount_amount,total_amount,supplier_cost,ad_cost,other_cost,created_at")
+      .order("created_at",{ascending:false}).limit(1000);
+    if (error) throw error;
+    const rows = orders || [];
+    const groups = new Map();
+    for (const order of rows) {
+      const currency = String(order.currency_code || "غير محددة").toUpperCase();
+      if (!groups.has(currency)) groups.set(currency, {
+        currency, count: 0, delivered: 0, sales: 0, supplier: 0,
+        shipping: 0, adsEGP: 0, other: 0, discounts: 0,
+        missingSupplierCost: 0, statuses: {}
+      });
+      const g = groups.get(currency);
+      g.count++;
+      g.statuses[order.status] = (g.statuses[order.status] || 0) + 1;
+      if (order.status === "delivered") g.delivered++;
+      g.sales += Number(order.subtotal || 0);
+      g.supplier += Number(order.supplier_cost || 0);
+      g.shipping += Number(order.shipping_amount || 0);
+      g.discounts += Number(order.discount_amount || 0);
+      g.other += Number(order.other_cost || 0);
+      // Advertising spend is stored in EGP and is not mixed into foreign currencies.
+      g.adsEGP += Number(order.ad_cost || 0);
+      if (Number(order.supplier_cost || 0) <= 0) g.missingSupplierCost++;
+    }
+    const fmt = (v, currency) => new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(v) + " " + currency;
+    const cards = [...groups.values()].map(g => {
+      const estimated = g.sales - g.supplier - g.shipping - g.discounts - g.other;
+      return `<div class="panel">
+        <h3>السوق بعملة ${escapeHTML(g.currency)}</h3>
+        <div class="grid">
+          <div><small>عدد الطلبات</small><b>${g.count}</b></div>
+          <div><small>طلبات تم تسليمها</small><b>${g.delivered}</b></div>
+          <div><small>قيمة المنتجات المسجلة</small><b>${fmt(g.sales,g.currency)}</b></div>
+          <div><small>تكلفة المورد المسجلة</small><b>${fmt(g.supplier,g.currency)}</b></div>
+          <div><small>الشحن المسجل</small><b>${fmt(g.shipping,g.currency)}</b></div>
+          <div><small>الخصومات</small><b>${fmt(g.discounts,g.currency)}</b></div>
+          <div><small>المصروفات الأخرى</small><b>${fmt(g.other,g.currency)}</b></div>
+          <div><small>إعلانات مسجلة بالجنيه المصري</small><b>${fmt(g.adsEGP,"EGP")}</b></div>
+        </div>
+        <p class="muted">هامش تقديري قبل تكلفة الإعلانات والتحقق من التحصيل: ${fmt(estimated,g.currency)}</p>
+        <p class="muted">${g.missingSupplierCost ? `تنبيه: ${g.missingSupplierCost} طلب/طلبات بدون تكلفة مورد مسجلة؛ النتيجة ليست صافي ربح.` : "تكاليف المورد مسجلة، لكن يجب مطابقة التحصيل والمرتجعات قبل اعتماد الربح المحقق."}</p>
+        <p class="muted">توزيع الحالات: ${escapeHTML(Object.entries(g.statuses).map(([k,v]) => k + ": " + v).join(" • "))}</p>
+      </div>`;
+    }).join("");
     $("view").innerHTML = `
-      <h1>${pages.profit}</h1>
-
-      <div class="panel">
-        <p class="muted">
-          هذه صفحة مراجعة الطلبات المالية.
-          لن نحسب صافي الربح قبل التأكد من أعمدة
-          التكلفة والشحن والإعلان والتحصيل والمرتجعات.
-        </p>
-
-        <div id="profitTable"></div>
-      </div>
-    `;
-
+      <div class="head"><div><h1>${pages.profit}</h1>
+      <p class="muted">تحليل منفصل لكل عملة سوق. لا يتم جمع عملات مختلفة في إجمالي واحد ولا اعتبار التقديرات أرباحًا محققة.</p></div></div>
+      <div class="notice">تنبيه مالي: صافي الربح لا يمكن اعتماده قبل تسجيل تكلفة Taager الفعلية، والتحصيل، والمرتجعات، ومصروفات الإعلان. جميع مصروفات الإعلانات تُراجع بالجنيه المصري.</div>
+      ${cards || '<div class="panel"><p class="muted">لا توجد طلبات مالية مسجلة بعد.</p></div>'}
+      <div class="panel"><h3>تفاصيل الطلبات</h3><div id="profitTable"></div></div>`;
     renderTable($("profitTable"), rows);
+  }
+
+  // =========================================
+  // الطلبات - متابعة الطلبات وبنودها
+  // =========================================
+  async function renderOrders() {
+    const [{data: orders, error: ordersError}, {data: items, error: itemsError}] = await Promise.all([
+      db.from("orders").select("id,order_number,external_order_id,source_channel,status,currency_code,subtotal,shipping_amount,discount_amount,total_amount,supplier_cost,ad_cost,other_cost,tracking_number,shipping_provider,created_at,updated_at").order("created_at",{ascending:false}).limit(200),
+      db.from("order_items").select("order_id,product_name,sku,quantity,unit_price,unit_cost,line_total").limit(1000)
+    ]);
+    if (ordersError) throw ordersError;
+    if (itemsError) throw itemsError;
+    const rows = orders || [];
+    const grouped = new Map();
+    (items || []).forEach(item => {
+      if (!grouped.has(item.order_id)) grouped.set(item.order_id, []);
+      grouped.get(item.order_id).push(item);
+    });
+    const view = $("view");
+    view.innerHTML = `
+      <div class="head"><div><h1>${pages.orders}</h1>
+      <p class="muted">متابعة الطلبات الواردة من EasyOrders وغيرها، مع تفاصيل المنتجات والشحن والتكاليف المسجلة.</p></div>
+      <span class="badge">الطلبات: ${rows.length}</span></div>
+      <div class="panel">
+        <label for="orderSearch"><b>بحث برقم الطلب أو رقم الطلب الخارجي أو الحالة</b></label>
+        <input id="orderSearch" type="search" placeholder="اكتب رقم الطلب أو الحالة" style="display:block;width:100%;max-width:520px;margin-top:8px;padding:12px;border:1px solid #d8deea;border-radius:10px">
+        <p class="muted">يتم عرض الحالة كما وصلت من النظام المصدر. لا يتم تغيير حالة الشحن أو التسليم دون تحديث موثوق من مزود الخدمة.</p>
+      </div>
+      <div id="orderRows"></div>`;
+    const target = $("orderRows");
+    const money = (v, currency) => v == null ? "—" : new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v)) + " " + (currency || "");
+    const draw = (query = "") => {
+      const q = query.trim().toLowerCase();
+      const filtered = rows.filter(o => [o.order_number,o.external_order_id,o.status,o.source_channel]
+        .some(v => String(v || "").toLowerCase().includes(q)));
+      if (!filtered.length) {
+        target.innerHTML = '<div class="panel"><p class="muted">لا توجد طلبات مطابقة.</p></div>';
+        return;
+      }
+      target.innerHTML = filtered.map(o => {
+        const orderItems = grouped.get(o.id) || [];
+        return `<div class="panel" style="overflow:auto">
+          <div class="head"><div><h3>${escapeHTML(o.order_number)}</h3>
+          <p class="muted">المصدر: ${escapeHTML(o.source_channel)} • الرقم الخارجي: ${escapeHTML(o.external_order_id || "—")}</p></div>
+          <b>${escapeHTML(o.status)}</b></div>
+          <table><tbody>
+            <tr><th>المنتجات</th><th>SKU</th><th>الكمية</th><th>سعر الوحدة</th><th>تكلفة الوحدة</th><th>الإجمالي</th></tr>
+            ${orderItems.length ? orderItems.map(i => `<tr><td>${escapeHTML(i.product_name)}</td><td>${escapeHTML(i.sku || "—")}</td><td>${i.quantity}</td><td>${money(i.unit_price,o.currency_code)}</td><td>${money(i.unit_cost,o.currency_code)}</td><td>${money(i.line_total,o.currency_code)}</td></tr>`).join("") : '<tr><td colspan="6">لم تصل تفاصيل المنتجات لهذا الطلب.</td></tr>'}
+          </tbody></table>
+          <div class="grid" style="margin-top:12px">
+            <div><small>قيمة المنتجات</small><b>${money(o.subtotal,o.currency_code)}</b></div>
+            <div><small>الشحن</small><b>${money(o.shipping_amount,o.currency_code)}</b></div>
+            <div><small>الخصم</small><b>${money(o.discount_amount,o.currency_code)}</b></div>
+            <div><small>الإجمالي</small><b>${money(o.total_amount,o.currency_code)}</b></div>
+            <div><small>تكلفة المورد المسجلة</small><b>${money(o.supplier_cost,o.currency_code)}</b></div>
+            <div><small>تكلفة الإعلان المسجلة</small><b>${money(o.ad_cost,"EGP")}</b></div>
+          </div>
+          <p class="muted">شركة الشحن: ${escapeHTML(o.shipping_provider || "غير محددة")} • رقم التتبع: ${escapeHTML(o.tracking_number || "غير مسجل")} • تاريخ الإنشاء: ${escapeHTML(o.created_at || "—")}</p>
+        </div>`;
+      }).join("");
+    };
+    $("orderSearch").addEventListener("input", e => draw(e.target.value));
+    draw();
   }
 
   // =========================================
@@ -767,7 +1041,13 @@
       </div>`;
 
     try {
-      if (page === "overview") {
+      if (page === "orders") {
+        await renderOrders();
+      } else if (page === "products") {
+        await renderProducts();
+      } else if (page === "campaigns") {
+        await renderCampaigns();
+      } else if (page === "overview") {
         await renderOverview();
       } else if (page === "markets") {
         await renderMarkets();

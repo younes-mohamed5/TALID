@@ -1,0 +1,31 @@
+name: TALID static validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, work/talid-admin-operations-2026-11-09]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check browser JavaScript syntax
+        run: node --check web/app.js
+      - name: Check config example syntax
+        run: node --check web/config.example.js
+      - name: Ensure service-role secrets are not in browser files
+        run: |
+          if grep -RniE 'service_role|SUPABASE_SERVICE_ROLE_KEY' web; then
+            echo "A service-role secret reference was found in browser files."
+            exit 1
+          fi
