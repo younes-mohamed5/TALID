@@ -38,34 +38,32 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   },
 });
 
-function isEasyOrdersVerified(integrations: any[] | null): boolean {
+function isProviderVerified(integrations: any[] | null, provider: string): boolean {
   const integration = integrations?.find(
-    (item) => item.provider === "easyorders"
+    (item) => String(item.provider || "").toLowerCase() === provider
   );
-
   const status = String(integration?.status || "").toLowerCase();
-
-  return ["active", "verified"].includes(status);
+  return ["active", "verified", "connected"].includes(status);
 }
 
+const REQUIRED_MARKETS = ["EG", "SA", "AE", "OM", "IQ"];
+
 function getMarketBlockers(markets: any[] | null): string[] {
-  const activeMarkets = (markets || []).filter(
-    (market) => market.is_enabled === true
-  );
-
-  if (activeMarkets.length === 0) {
-    return ["لا يوجد سوق مفعل لدى Taager"];
+  const rows = markets || [];
+  const blockers: string[] = [];
+  for (const code of REQUIRED_MARKETS) {
+    const market = rows.find((item) =>
+      String(item.code || item.country_code || "").toUpperCase() === code
+    );
+    if (!market) {
+      blockers.push(`السوق ${code} غير مسجل`);
+    } else if (market.is_enabled !== true) {
+      blockers.push(`السوق ${code} غير مفعل`);
+    } else if (market.provider_verified !== true) {
+      blockers.push(`السوق ${code} غير موثق لدى Taager`);
+    }
   }
-
-  const unverifiedMarkets = activeMarkets.filter(
-    (market) => market.provider_verified !== true
-  );
-
-  if (unverifiedMarkets.length > 0) {
-    return ["يوجد سوق مفعل لم يتم توثيقه لدى Taager"];
-  }
-
-  return [];
+  return blockers;
 }
 
 Deno.serve(async (req: Request) => {
@@ -190,8 +188,12 @@ Deno.serve(async (req: Request) => {
 
     const blockers: string[] = [];
 
-    if (!isEasyOrdersVerified(integrations)) {
+    if (!isProviderVerified(integrations, "easyorders")) {
       blockers.push("EasyOrders غير موثق");
+    }
+
+    if (!isProviderVerified(integrations, "taager")) {
+      blockers.push("Taager غير موثق");
     }
 
     blockers.push(...getMarketBlockers(markets));
