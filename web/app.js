@@ -470,7 +470,9 @@
       <div class="panel">
         <label for="productSearch"><b>بحث بالاسم أو SKU / Taager Code</b></label>
         <input id="productSearch" type="search" placeholder="اكتب اسم المنتج أو الكود" style="display:block;width:100%;max-width:520px;margin-top:8px;padding:12px;border:1px solid #d8deea;border-radius:10px">
-        <p class="muted">استيراد Taager المباشر غير مفعل حتى يتم توثيق واجهة الربط الرسمية. لن نضيف منتجات وهمية أو نعتبر بيانات المتجر مستوردة.</p>
+        <p class="muted">يمكنك معاينة كتالوج EasyOrders الآن. المعاينة للقراءة فقط ولا تضيف أو تعدل أي منتج.</p>
+        <button id="easyOrdersPreview" type="button">معاينة منتجات EasyOrders</button>
+        <div id="easyOrdersPreviewResult" aria-live="polite" style="margin-top:12px"></div>
       </div>
       <div id="productRows"></div>`;
     const target = $("productRows");
@@ -498,6 +500,32 @@
     };
     $("productSearch").addEventListener("input", e => draw(e.target.value));
     draw();
+
+    $("easyOrdersPreview").addEventListener("click", async () => {
+      const button = $("easyOrdersPreview");
+      const resultBox = $("easyOrdersPreviewResult");
+      button.disabled = true;
+      resultBox.innerHTML = '<p class="muted">جارٍ الاتصال بـ EasyOrders وقراءة الكتالوج...</p>';
+      try {
+        const { data, error } = await db.functions.invoke("easyorders-catalog-sync", { body: { mode: "preview" } });
+        if (error) {
+          let message = error.message || "تعذر تنفيذ المعاينة";
+          if (error.context && typeof error.context.json === "function") {
+            try { const details = await error.context.json(); message = details.error || details.message || message; } catch (_) {}
+          }
+          throw new Error(message);
+        }
+        if (data?.error) throw new Error(data.error);
+        const items = Array.isArray(data?.preview) ? data.preview : [];
+        const rowsHtml = items.map(item => '<tr><td>' + escapeHTML(item.name || "بدون اسم") + '</td><td>' + escapeHTML(item.sku || "—") + '</td><td>' + escapeHTML(item.taager_code || "—") + '</td><td>' + escapeHTML(item.price ?? "—") + '</td><td>' + escapeHTML(item.quantity ?? "—") + '</td></tr>').join("");
+        resultBox.innerHTML = '<div class="notice">استجابة EasyOrders: ' + Number(data.fetched || 0) + ' منتج. هذه معاينة فقط؛ لم يتم حفظ أو تعديل أي منتج.</div>' + (items.length ? '<div style="overflow:auto"><table><thead><tr><th>المنتج</th><th>SKU</th><th>Taager Code</th><th>السعر</th><th>الكمية</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' : '<p class="muted">' + escapeHTML(data.message || "لم تُرجع الواجهة منتجات في المعاينة.") + '</p>');
+        notify("اكتملت معاينة EasyOrders دون تعديل قاعدة البيانات.");
+      } catch (error) {
+        resultBox.innerHTML = '<div class="notice">' + escapeHTML(error.message) + '</div>';
+      } finally {
+        button.disabled = false;
+      }
+    });
   }
 
   // =========================================
