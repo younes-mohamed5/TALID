@@ -1,14 +1,14 @@
 
 :root {
-  --navy: #0B1F44;
-  --navy-dark: #07162F;
-  --gold: #D4AF37;
-  --gold-light: #FFF7DF;
-  --bg: #F3F5F9;
+  --navy: #171717;
+  --navy-dark: #090909;
+  --gold: #B8860B;
+  --gold-light: #F5F5DC;
+  --bg: #F5F5DC;
   --white: #FFFFFF;
-  --text: #18253C;
-  --muted: #78859A;
-  --line: #E5EAF1;
+  --text: #211B18;
+  --muted: #756D60;
+  --line: #E5DCC5;
   --success: #16834A;
   --danger: #B42318;
   --shadow: 0 8px 28px rgba(11, 31, 68, .07);
@@ -81,7 +81,7 @@ input {
   margin: 12px 0;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: #FAFBFD;
+  background: #FBF8EE;
   color: var(--text);
   font-family: inherit;
   font-size: 14px;
@@ -194,7 +194,7 @@ nav button:hover {
 }
 
 nav button.active {
-  border-right: 3px solid var(--gold);
+  border-right: 3px solid #B8860B;
   border-radius: 5px;
   background: #FFFFFF20;
   color: white;
@@ -391,7 +391,7 @@ th {
 }
 
 th {
-  background: #F8FAFC;
+  background: #F5F5DC;
   color: var(--muted);
   font-weight: bold;
   white-space: nowrap;
@@ -567,7 +567,7 @@ input:focus-visible {
 @media(max-width:500px){.eo-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.eo-product-image{height:125px}.eo-product-card{padding:8px}.eo-details{padding:11px}}
 
 
-/* AL-GEBAIHY visual identity — UI presentation only */
+/* AL-GEBAIHY falcon identity — presentation only */
 .brand-lockup{display:flex;align-items:center;justify-content:center;gap:13px}
 .brand-lockup img{width:64px;height:64px;flex:0 0 auto;filter:drop-shadow(0 5px 12px rgba(11,31,68,.12))}
 .brand-lockup-login{margin:0 auto 14px}
