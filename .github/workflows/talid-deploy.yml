@@ -1,0 +1,72 @@
+name: TALID automatic deployment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/talid-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: talid-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate browser JavaScript
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check browser files
+        run: |
+          node --check web/app.js
+          node --check web/config.js
+          node --check web/config.example.js
+          if grep -RniE 'service_role|SUPABASE_SERVICE_ROLE_KEY' web; then
+            echo "Service-role material must never be stored in browser files."
+            exit 1
+          fi
+
+      - name: Verify deployment credentials
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          test -n "$SUPABASE_DB_URL" || { echo "Missing GitHub secret SUPABASE_DB_URL"; exit 1; }
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing GitHub secret SUPABASE_ACCESS_TOKEN"; exit 1; }
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Publish database update
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$SUPABASE_DB_URL" \
+            -v ON_ERROR_STOP=1 \
+            -v commit_sha="$GITHUB_SHA" \
+            -v branch_name="$GITHUB_REF_NAME" \
+            -v workflow_run_id="$GITHUB_RUN_ID" \
+            -f supabase/deploy/0004_talid_deployment_tracking.sql
+
+      - name: Deploy Supabase Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          npx --yes supabase@latest functions deploy easyorders-webhook --project-ref wpxcrqjxbhptismebtzg --no-verify-jwt
+          npx --yes supabase@latest functions deploy easyorders-catalog-sync --project-ref wpxcrqjxbhptismebtzg
+          npx --yes supabase@latest functions deploy talid-control --project-ref wpxcrqjxbhptismebtzg
+          npx --yes supabase@latest functions deploy talid-worker --project-ref wpxcrqjxbhptismebtzg
+          npx --yes supabase@latest functions deploy integration-gateway --project-ref wpxcrqjxbhptismebtzg
