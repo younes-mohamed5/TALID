@@ -65,8 +65,8 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          npx --yes supabase@latest functions deploy easyorders-webhook --project-ref wpxcrqjxbhptismebtzg --no-verify-jwt
-          npx --yes supabase@latest functions deploy easyorders-catalog-sync --project-ref wpxcrqjxbhptismebtzg
-          npx --yes supabase@latest functions deploy talid-control --project-ref wpxcrqjxbhptismebtzg
-          npx --yes supabase@latest functions deploy talid-worker --project-ref wpxcrqjxbhptismebtzg
-          npx --yes supabase@latest functions deploy integration-gateway --project-ref wpxcrqjxbhptismebtzg
+          npx --yes supabase@latest functions deploy easyorders-webhook --project-ref wpxcrqjxbhptismebtzg --no-verify-jwt --yes
+          npx --yes supabase@latest functions deploy easyorders-catalog-sync --project-ref wpxcrqjxbhptismebtzg --yes
+          npx --yes supabase@latest functions deploy talid-control --project-ref wpxcrqjxbhptismebtzg --yes
+          npx --yes supabase@latest functions deploy talid-worker --project-ref wpxcrqjxbhptismebtzg --yes
+          npx --yes supabase@latest functions deploy integration-gateway --project-ref wpxcrqjxbhptismebtzg --yes
