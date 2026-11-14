@@ -355,7 +355,7 @@
     view.innerHTML = `
       <div class="head">
         <div>
-          <h1>مرحبًا بك في TALID</h1>
+          <h1>مرحبًا بك في الجبيهى</h1>
           <p class="muted">
             منصة متابعة التجارة والطلبات والأسواق
           </p>
@@ -419,11 +419,11 @@
           </p>
 
           <p class="muted">
-            TALID تدير أسواقك وأسعارك وتكاليفك وتحلل النتائج.
+            الجبيهى تدير أسواقك وأسعارك وتكاليفك وتحلل النتائج.
           </p>
 
           <p class="muted">
-            TALID تتابع البيانات وتحلل النتائج.
+            الجبيهى تتابع البيانات وتحلل النتائج.
             لا يتم إنفاق إعلانات أو تنفيذ قرارات مالية دون موافقتك.
           </p>
         </div>
@@ -914,7 +914,7 @@
 
       <div class="panel">
         <h3>إعداد متجر EasyOrders والسوق</h3>
-        <p class="muted">حدد الدولة التي يعمل عليها حساب EasyOrders، وأدخل رابط متجرك لفتحه مباشرة من لوحة الإدارة. تُستخدم عملة الدولة تلقائياً في كتالوج TALID.</p>
+        <p class="muted">حدد الدولة التي يعمل عليها حساب EasyOrders، وأدخل رابط متجرك لفتحه مباشرة من لوحة الإدارة. تُستخدم عملة الدولة تلقائياً في كتالوج الجبيهى.</p>
         <label for="easyOrdersCountry">دولة متجر EasyOrders</label>
         <select id="easyOrdersCountry" style="display:block;width:100%;padding:12px;margin:8px 0 14px;border:1px solid #d8deea;border-radius:10px">
           <option value="">اختر الدولة</option>
@@ -951,7 +951,7 @@
       storeStatus.textContent = store.country_code
         ? "الدولة الحالية: " + store.country_code + " – العملة: " + (store.currency_code || "غير محددة") + " – حالة الاتصال: " + (store.status || "غير محددة")
         : "لم يتم تحديد دولة المتجر بعد.";
-      $("integrationTable").innerHTML = '<div class="line"><span>EasyOrders — ' + escapeHTML(store.country_code || "لم تُحدد الدولة") + '</span><b>' + escapeHTML(store.status || "غير مهيأ") + '</b></div><p class="muted">Taager متصلة من خلال EasyOrders؛ لا يلزم تسجيل تكامل Taager مستقل داخل TALID.</p>';
+      $("integrationTable").innerHTML = '<div class="line"><span>EasyOrders — ' + escapeHTML(store.country_code || "لم تُحدد الدولة") + '</span><b>' + escapeHTML(store.status || "غير مهيأ") + '</b></div><p class="muted">Taager متصلة من خلال EasyOrders؛ لا يلزم تسجيل تكامل Taager مستقل داخل الجبيهى.</p>';
     } catch (error) {
       storeStatus.textContent = "تعذر تحميل إعدادات المتجر: " + error.message;
     }
