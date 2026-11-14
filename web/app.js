@@ -538,7 +538,7 @@
               '<div class="eo-product-image eo-no-image">لا توجد صورة مرسلة من EasyOrders</div>') +
             '<span class="eo-product-info"><b>' + escapeHTML(item.name || "بدون اسم") + '</b>' +
             '<small>SKU: ' + escapeHTML(item.sku || "غير مسجل") + '</small>' +
-            '<strong>' + escapeHTML(money(item.price, item.currency)) + '</strong></span></button>';
+            '<small>تكلفة المورد الواردة من EasyOrders</small><strong>' + escapeHTML(money(item.price, item.currency)) + '</strong></span></button>';
         }).join("");
         resultBox.innerHTML =
           '<div class="notice">تم استلام ' + Number(data.fetched || items.length) + ' منتج من EasyOrders. المعاينة لا تحفظ المنتجات داخل TALID.</div>' +
@@ -621,7 +621,7 @@
           pages++;
           if (Number(data.fetched || 0) < 50) break;
         }
-        resultBox.innerHTML = '<div class="notice">اكتمل استيراد الكتالوج: الصفحات ' + pages + '، المنتجات المقروءة ' + totalFetched + '، منتجات جديدة مستوردة ' + totalImported + '. المنتجات الجديدة في حالة مسودة.</div>';
+        resultBox.innerHTML = '<div class="notice">انتهى الاستيراد: صفحات ' + pages + '، منتجات مقروءة ' + totalFetched + '، منتجات جديدة أضيفت ' + totalImported + '. تم تخطي المنتجات الموجودة مسبقاً. المنتجات الجديدة مسودات وسعر البيع غير محدد.</div>';
         notify("انتهى الاستيراد مع تخطي المنتجات الموجودة مسبقاً.");
         await renderProducts();
       } catch (error) {
