@@ -98,13 +98,13 @@ AL-GEBAIHY/
 
 9. الهوية البصرية
 
-- اللون الأساسي: Royal Navy "#0B1F44"
-- اللون الثانوي: Gold "#D4AF37"
-- اللون المساعد: White "#FFFFFF"
+- اللون الأساسي: Obsidian Black "#171717"
+- اللون الثانوي: Gold "#B8860B"
+- اللون المميز: Royal Burgundy "#790024"\n- اللون المساعد: Ivory "#F5F5DC"
 - الاسم التجاري: الجبيهى | AL-GEBAIHY
 - ملف الشعار: web/brand-mark.svg
 
 ---
 
 AL-GEBAIHY — Smart Commerce Platform
-TRUST • INNOVATION • GROWTH
+AUTHENTICITY • STRENGTH • DISTINCTION
