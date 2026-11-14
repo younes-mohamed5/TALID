@@ -1,15 +1,15 @@
-TALID | تليد
+الجبيهى | AL-GEBAIHY
 
 Smart Commerce Management Platform
 
-أصل عريق. مستقبل بلا حدود.
-HERITAGE • AMBITION • INNOVATION
+الأصالة والقوة والتميز.
+AUTHENTICITY • STRENGTH • DISTINCTION
 
 ---
 
 1. نبذة عن المشروع
 
-TALID منصة ذكية لإدارة ومتابعة عمليات التجارة الإلكترونية، تستهدف مساعدة أصحاب المتاجر على متابعة المنتجات والطلبات والأسواق والأرباح والتسويق من لوحة تحكم موحدة.
+الجبيهى منصة ذكية لإدارة ومتابعة عمليات التجارة الإلكترونية، تستهدف مساعدة أصحاب المتاجر على متابعة المنتجات والطلبات والأسواق والأرباح والتسويق من لوحة تحكم موحدة.
 
 تستهدف المنصة العمل في الأسواق التالية:
 
@@ -53,7 +53,7 @@ EasyOrders
 
 5. هيكل المشروع
 
-TALID/
+AL-GEBAIHY/
 │
 ├── web/
 │   ├── index.html
@@ -98,11 +98,13 @@ TALID/
 
 9. الهوية البصرية
 
-- اللون الأساسي: Royal Navy "#0B1F44"
-- اللون الثانوي: Gold "#D4AF37"
-- اللون المساعد: White "#FFFFFF"
+- اللون الأساسي: Obsidian Black "#171717"
+- اللون الثانوي: Gold "#B8860B"
+- اللون المميز: Royal Burgundy "#790024"\n- اللون المساعد: Ivory "#F5F5DC"
+- الاسم التجاري: الجبيهى | AL-GEBAIHY
+- ملف الشعار: web/brand-mark.svg
 
 ---
 
-TALID — Smart Commerce Platform
-HERITAGE • AMBITION • INNOVATION
+AL-GEBAIHY — Smart Commerce Platform
+AUTHENTICITY • STRENGTH • DISTINCTION
