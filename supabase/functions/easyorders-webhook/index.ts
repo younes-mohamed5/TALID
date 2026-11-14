@@ -245,12 +245,28 @@ Deno.serve(async (req: Request) => {
     payload?.status
   );
 
-  const currency = str(
-    order?.currency ??
-    order?.currency_code ??
-    order?.custom_currency ??
-    "EGP"
-  ).toUpperCase();
+  const explicitCurrency = str(order?.currency ?? order?.currency_code ?? order?.custom_currency).toUpperCase();
+  const explicitMarket = str(order?.market_code ?? order?.country_code ?? order?.country?.code).toUpperCase();
+  const currencyToMarket:Record<string,string>={EGP:"EG",SAR:"SA",AED:"AE",OMR:"OM",IQD:"IQ"};
+  const marketToCurrency:Record<string,string>={EG:"EGP",SA:"SAR",AE:"AED",OM:"OMR",IQ:"IQD"};
+  const {data:storeConnection,error:storeConnectionError}=await db
+    .from("integration_connections")
+    .select("config_public")
+    .eq("provider","easyorders")
+    .order("created_at",{ascending:false})
+    .limit(1)
+    .maybeSingle();
+  if(storeConnectionError){
+    console.error("EasyOrders store configuration lookup:",storeConnectionError.message);
+    return reply({error:"Could not resolve EasyOrders store market."},500);
+  }
+  const storeConfig=(storeConnection?.config_public||{}) as Record<string,unknown>;
+  const configuredMarket=str(storeConfig.country_code).toUpperCase();
+  const marketCode=explicitMarket||currencyToMarket[explicitCurrency]||configuredMarket;
+  const currency=explicitCurrency||marketToCurrency[marketCode]||str(storeConfig.currency_code).toUpperCase();
+  if(!marketCode||!marketToCurrency[marketCode]||!currency||currency!==marketToCurrency[marketCode]){
+    return reply({error:"Order market/currency is missing or inconsistent. Confirm the active EasyOrders store country before accepting this order.",market_code:marketCode||null,currency_code:currency||null},422);
+  }
 
   // EasyOrders actual fields:
   // cost = products subtotal
@@ -283,13 +299,6 @@ Deno.serve(async (req: Request) => {
     0,
     subtotal + shippingAmount - totalAmount
   );
-
-  const marketCode = str(
-    order?.market_code ??
-    order?.country_code ??
-    order?.country?.code ??
-    "EG"
-  ).toUpperCase();
 
   // Find country.
   let countryId: string | null = null;
@@ -439,7 +448,7 @@ Deno.serve(async (req: Request) => {
     if (skus.length > 0) {
       const { data: catalog, error: catalogError } = await db
         .from("products")
-        .select("id,sku,supplier_sku,cost_price")
+        .select("id,sku,supplier_sku")
         .or(skus.map((sku) => `sku.eq.${String(sku).replace(/[(),]/g, "")},supplier_sku.eq.${String(sku).replace(/[(),]/g, "")}`).join(","));
       if (catalogError) {
         await markEventFailed(eventKey, catalogError.message);
@@ -452,11 +461,24 @@ Deno.serve(async (req: Request) => {
         if (product.sku) catalogBySku.set(String(product.sku), product);
         if (product.supplier_sku) catalogBySku.set(String(product.supplier_sku), product);
       }
+      const matchedProducts=[...new Map([...catalogBySku.values()].map((p:any)=>[p.id,p])).values()];
+      const matchedIds=matchedProducts.map((p:any)=>p.id);
+      const {data:marketPrices,error:marketPriceError}=countryId&&matchedIds.length
+        ? await db.from("product_country_prices").select("product_id,cost_price,currency_code").eq("country_id",countryId).in("product_id",matchedIds)
+        : {data:[],error:null};
+      if(marketPriceError){
+        await markEventFailed(eventKey,marketPriceError.message);
+        return reply({received:true,order_synced:true,items_synced:false,error:"Could not load supplier costs for this order market",details:marketPriceError.message},500);
+      }
+      const costByProduct=new Map((marketPrices||[]).map((p:any)=>[p.product_id,p]));
       for (const item of normalizedItems) {
         const match = item.sku ? catalogBySku.get(item.sku) : null;
         if (match) {
           item.product_id = match.id;
-          item.unit_cost = num(match.cost_price);
+          const marketPrice=costByProduct.get(match.id);
+          item.unit_cost = marketPrice && String(marketPrice.currency_code||"").toUpperCase()===currency
+            ? num(marketPrice.cost_price)
+            : 0;
         }
       }
     }
