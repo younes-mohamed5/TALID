@@ -138,6 +138,123 @@ Deno.serve(async (req) => {
     return json({ error: "Request body must be valid JSON." }, 400, origin);
   }
 
+  // Import mode writes EasyOrders catalog records into the existing products table.
+  // New products remain draft; existing product status and manually entered cost_price are preserved.
+  if (requestBody.mode === "import") {
+    const requestedLimit = Number(requestBody.limit ?? 50);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(50, Math.floor(requestedLimit))) : 50;
+    const requestedPage = Number(requestBody.page ?? 1);
+    const page = Number.isFinite(requestedPage) ? Math.max(1, Math.min(10000, Math.floor(requestedPage))) : 1;
+    const endpoint = new URL("https://api.easy-orders.net/api/v1/external-apps/products");
+    endpoint.searchParams.set("page", String(page));
+    endpoint.searchParams.set("limit", String(limit));
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    try {
+      const upstream = await fetch(endpoint.toString(), {
+        method: "GET",
+        headers: { "Api-Key": EASYORDERS_API_KEY, "Accept": "application/json" },
+        signal: controller.signal,
+      });
+      const raw = await upstream.text();
+      if (!upstream.ok) {
+        return json({ success: false, error: "EasyOrders rejected the catalog import.", upstream_status: upstream.status }, 502, origin);
+      }
+      let payload: unknown;
+      try { payload = JSON.parse(raw); } catch {
+        return json({ success: false, error: "EasyOrders returned a non-JSON catalog response." }, 502, origin);
+      }
+      const sourceProducts = extractProducts(payload);
+      const rows: Record<string, unknown>[] = [];
+      const skipped: string[] = [];
+      for (const source of sourceProducts) {
+        const sourceId = asText(source.id);
+        const name = asText(source.name_ar) || asText(source.name) || asText(source.title);
+        if (!sourceId || !name) {
+          skipped.push(sourceId || "unknown-id");
+          continue;
+        }
+        const sourceSku = asText(source.sku) || asText(source.taager_code);
+        const sku = sourceSku || ("EO-" + sourceId);
+        const imageList = Array.isArray(source.images) ? source.images.map(asText).filter(Boolean) : [];
+        const thumb = asText(source.thumb);
+        const images = [...new Set([...(thumb ? [thumb] : []), ...imageList])];
+        const rawQuantity = source.quantity;
+        const quantity = rawQuantity == null || rawQuantity === "" ? null : Number(rawQuantity);
+        const stockQty = quantity != null && Number.isFinite(quantity) ? Math.max(0, Math.floor(quantity)) : null;
+        const stockStatus = stockQty == null ? "unknown" : stockQty > 0 ? "in_stock" : "out_of_stock";
+        const rawPrice = source.sale_price ?? source.price;
+        const salePrice = rawPrice == null || rawPrice === "" ? null : Number(rawPrice);
+        const currency = asText(source.currency_code) || asText(source.currency) || "EGP";
+        const slugBase = (asText(source.slug) || name)
+          .toLowerCase()
+          .normalize("NFKD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 70) || "easyorders-product";
+        rows.push({
+          sku,
+          name_ar: name,
+          name_en: asText(source.name_en),
+          slug: slugBase + "-" + sourceId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 24),
+          description: asText(source.description),
+          supplier_name: "EasyOrders",
+          supplier_product_id: sourceId,
+          supplier_sku: sourceSku,
+          sale_price: salePrice != null && Number.isFinite(salePrice) ? salePrice : null,
+          currency_code: currency,
+          stock_qty: stockQty,
+          stock_status: stockStatus,
+          images,
+          attributes: {
+            source: "easyorders",
+            easyorders_slug: asText(source.slug),
+            taager_code: asText(source.taager_code),
+            original_price: source.price ?? null,
+          },
+          updated_at: new Date().toISOString(),
+        });
+      }
+      let imported = 0;
+      if (rows.length) {
+        const { data: saved, error: saveError } = await adminClient
+          .from("products")
+          .upsert(rows, { onConflict: "sku" })
+          .select("id");
+        if (saveError) {
+          return json({ success: false, error: "Could not save EasyOrders products to TALID.", details: saveError.message, fetched: sourceProducts.length, prepared: rows.length }, 500, origin);
+        }
+        imported = saved?.length ?? rows.length;
+      }
+      await adminClient.from("sync_logs").insert({
+        provider: "easyorders",
+        entity_type: "products",
+        direction: "inbound",
+        status: "success",
+        records_count: imported,
+        message: "EasyOrders catalog page imported into TALID products.",
+        details: { page, limit, fetched: sourceProducts.length, saved: imported, skipped },
+      });
+      return json({
+        success: true,
+        mode: "import",
+        page,
+        fetched: sourceProducts.length,
+        prepared: rows.length,
+        imported,
+        skipped,
+        database_changed: imported > 0,
+        note: "New products remain draft. Existing product status and manually entered cost_price are preserved. Supplier cost is not inferred from the retail price.",
+      }, 200, origin);
+    } catch (error) {
+      const timedOut = error instanceof DOMException && error.name === "AbortError";
+      return json({ success: false, error: timedOut ? "EasyOrders catalog import timed out." : "EasyOrders catalog import failed.", details: timedOut ? undefined : (error instanceof Error ? error.message : String(error)) }, 502, origin);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   // Preview and authenticated single-product detail reads are read-only.
   if (requestBody.mode === "detail") {
     const productId = asText(requestBody.product_id);
