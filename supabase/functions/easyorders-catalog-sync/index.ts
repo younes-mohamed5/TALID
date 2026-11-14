@@ -163,124 +163,58 @@ Deno.serve(async (req) => {
     return json({ success: true, country_code: countryCode, currency_code: currencyCode, store_url: storeUrl }, 200, origin);
   }
 
-  // Import mode writes EasyOrders catalog records into the existing products table.
-  // New products remain draft; existing product status and manually entered cost_price are preserved.
+  // Import is insert-only: known EasyOrders IDs/SKUs are skipped, never overwritten.
+  // EasyOrders listed price is stored as supplier cost; TALID sale price is set only after pricing approval.
   if (requestBody.mode === "import") {
-    const requestedLimit = Number(requestBody.limit ?? 50);
-    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(50, Math.floor(requestedLimit))) : 50;
-    const requestedPage = Number(requestBody.page ?? 1);
-    const page = Number.isFinite(requestedPage) ? Math.max(1, Math.min(10000, Math.floor(requestedPage))) : 1;
+    const limit = Math.max(1, Math.min(50, Math.floor(Number(requestBody.limit ?? 50) || 50)));
+    const page = Math.max(1, Math.floor(Number(requestBody.page ?? 1) || 1));
+    const { data: connection, error: connectionError } = await adminClient.from("integration_connections")
+      .select("config_public").eq("provider", "easyorders").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (connectionError) return json({ error: connectionError.message }, 500, origin);
+    const storeConfig = (connection?.config_public || {}) as Record<string, unknown>;
+    const countryCode = asText(storeConfig.country_code)?.toUpperCase();
+    const currency = countryCode ? ({ EG:"EGP", SA:"SAR", AE:"AED", OM:"OMR", IQ:"IQD" } as Record<string,string>)[countryCode] : null;
+    if (!countryCode || !currency) return json({ error: "حدد دولة متجر EasyOrders من صفحة التكاملات أولاً.", setup_required: true }, 409, origin);
+    const { data: country, error: countryError } = await adminClient.from("countries").select("id").eq("code", countryCode).maybeSingle();
+    if (countryError || !country) return json({ error: "الدولة المختارة غير موجودة في جدول الدول." }, 400, origin);
     const endpoint = new URL("https://api.easy-orders.net/api/v1/external-apps/products");
-    endpoint.searchParams.set("page", String(page));
-    endpoint.searchParams.set("limit", String(limit));
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
+    endpoint.searchParams.set("page", String(page)); endpoint.searchParams.set("limit", String(limit));
+    const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 25000);
     try {
-      const upstream = await fetch(endpoint.toString(), {
-        method: "GET",
-        headers: { "Api-Key": EASYORDERS_API_KEY, "Accept": "application/json" },
-        signal: controller.signal,
-      });
+      const upstream = await fetch(endpoint.toString(), { method:"GET", headers:{ "Api-Key": EASYORDERS_API_KEY!, "Accept":"application/json" }, signal:controller.signal });
       const raw = await upstream.text();
-      if (!upstream.ok) {
-        return json({ success: false, error: "EasyOrders rejected the catalog import.", upstream_status: upstream.status }, 502, origin);
-      }
-      let payload: unknown;
-      try { payload = JSON.parse(raw); } catch {
-        return json({ success: false, error: "EasyOrders returned a non-JSON catalog response." }, 502, origin);
-      }
+      if (!upstream.ok) return json({ success:false, error:"EasyOrders rejected the catalog import.", upstream_status:upstream.status }, 502, origin);
+      let payload: unknown; try { payload = JSON.parse(raw); } catch { return json({ success:false, error:"EasyOrders returned a non-JSON catalog response." }, 502, origin); }
       const sourceProducts = extractProducts(payload);
-      const rows: Record<string, unknown>[] = [];
-      const skipped: string[] = [];
-      for (const source of sourceProducts) {
-        const sourceId = asText(source.id);
-        const name = asText(source.name_ar) || asText(source.name) || asText(source.title);
-        if (!sourceId || !name) {
-          skipped.push(sourceId || "unknown-id");
-          continue;
-        }
-        const sourceSku = asText(source.sku) || asText(source.taager_code);
-        const sku = sourceSku || ("EO-" + sourceId);
-        const imageList = Array.isArray(source.images) ? source.images.map(asText).filter(Boolean) : [];
-        const thumb = asText(source.thumb);
-        const images = [...new Set([...(thumb ? [thumb] : []), ...imageList])];
-        const rawQuantity = source.quantity;
-        const quantity = rawQuantity == null || rawQuantity === "" ? null : Number(rawQuantity);
-        const stockQty = quantity != null && Number.isFinite(quantity) ? Math.max(0, Math.floor(quantity)) : null;
-        const stockStatus = stockQty == null ? "unknown" : stockQty > 0 ? "in_stock" : "out_of_stock";
-        const rawPrice = source.sale_price ?? source.price;
-        const salePrice = rawPrice == null || rawPrice === "" ? null : Number(rawPrice);
-        const currency = asText(source.currency_code) || asText(source.currency) || "EGP";
-        const slugBase = (asText(source.slug) || name)
-          .toLowerCase()
-          .normalize("NFKD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "")
-          .slice(0, 70) || "easyorders-product";
-        rows.push({
-          sku,
-          name_ar: name,
-          name_en: asText(source.name_en),
-          slug: slugBase + "-" + sourceId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 24),
-          description: asText(source.description),
-          supplier_name: "EasyOrders",
-          supplier_product_id: sourceId,
-          supplier_sku: sourceSku,
-          sale_price: salePrice != null && Number.isFinite(salePrice) ? salePrice : null,
-          currency_code: currency,
-          stock_qty: stockQty,
-          stock_status: stockStatus,
-          images,
-          attributes: {
-            source: "easyorders",
-            easyorders_slug: asText(source.slug),
-            taager_code: asText(source.taager_code),
-            original_price: source.price ?? null,
-          },
-          updated_at: new Date().toISOString(),
-        });
+      const prepared = sourceProducts.map((source) => {
+        const id = asText(source.id); const name = asText(source.name_ar) || asText(source.name) || asText(source.title);
+        const supplierSku = asText(source.sku) || asText(source.taager_code);
+        const sku = supplierSku || (id ? "EO-" + id : null);
+        const rawCost = source.sale_price ?? source.price; const cost = rawCost == null || rawCost === "" ? null : Number(rawCost);
+        const images = [...new Set([...(asText(source.thumb) ? [asText(source.thumb)!] : []), ...(Array.isArray(source.images) ? source.images.map(asText).filter((v): v is string => !!v) : [])])];
+        const qtyRaw = source.quantity; const qty = qtyRaw == null || qtyRaw === "" ? null : Number(qtyRaw);
+        const slugBase = (asText(source.slug) || name || "easyorders-product").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60) || "easyorders-product";
+        return { id, name, supplierSku, sku, cost: cost != null && Number.isFinite(cost) ? cost : null, images, qty: qty != null && Number.isFinite(qty) ? Math.max(0,Math.floor(qty)) : null, slug: slugBase + "-" + (id || crypto.randomUUID()).replace(/[^a-zA-Z0-9-]/g,"").slice(0,24), source };
+      }).filter((p) => p.id && p.name && p.sku);
+      const ids = [...new Set(prepared.map((p) => p.id!))];
+      const skus = [...new Set(prepared.map((p) => p.sku!))];
+      const knownIds = new Set<string>(); const knownSkus = new Set<string>();
+      if (ids.length) { const q = await adminClient.from("products").select("supplier_product_id").eq("supplier_name","EasyOrders").in("supplier_product_id",ids); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) if(row.supplier_product_id) knownIds.add(String(row.supplier_product_id)); }
+      if (skus.length) { const q = await adminClient.from("products").select("sku,supplier_sku").or("sku.in.(" + skus.join(",") + "),supplier_sku.in.(" + skus.join(",") + ")"); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) { if(row.sku) knownSkus.add(String(row.sku)); if(row.supplier_sku) knownSkus.add(String(row.supplier_sku)); } }
+      const newProducts = prepared.filter((p) => !knownIds.has(p.id!) && !knownSkus.has(p.sku!));
+      let imported = 0; let skipped = prepared.length - newProducts.length;
+      for (const p of newProducts) {
+        const insert = await adminClient.from("products").insert({ sku:p.sku, name_ar:p.name, slug:p.slug, description:asText(p.source.description), supplier_name:"EasyOrders", supplier_product_id:p.id, supplier_sku:p.supplierSku, cost_price:p.cost, sale_price:null, currency_code:currency, stock_qty:p.qty, stock_status:p.qty == null ? "unknown" : p.qty > 0 ? "in_stock" : "out_of_stock", images:p.images, status:"draft", attributes:{ source:"easyorders", country_code:countryCode, taager_code:asText(p.source.taager_code) } }).select("id,cost_price").single();
+        if (insert.error) { if (insert.error.code === "23505") { skipped++; continue; } throw new Error(insert.error.message); }
+        const price = await adminClient.from("product_country_prices").upsert({ product_id:insert.data.id, country_id:country.id, cost_price:insert.data.cost_price, sale_price:null, shipping_cost:null, currency_code:currency, is_available:false }, { onConflict:"product_id,country_id" });
+        if (price.error) throw new Error("Product saved but country price record failed: " + price.error.message);
+        imported++;
       }
-      const uniqueRows = [...new Map(rows.map((row) => [String(row.sku), row])).values()];
-      let imported = 0;
-      if (uniqueRows.length) {
-        const { data: saved, error: saveError } = await adminClient
-          .from("products")
-          .upsert(uniqueRows, { onConflict: "sku" })
-          .select("id");
-        if (saveError) {
-          return json({ success: false, error: "Could not save EasyOrders products to TALID.", details: saveError.message, fetched: sourceProducts.length, prepared: uniqueRows.length }, 500, origin);
-        }
-        imported = saved?.length ?? rows.length;
-      }
-      await adminClient.from("sync_logs").insert({
-        provider: "easyorders",
-        entity_type: "products",
-        direction: "inbound",
-        status: "success",
-        records_count: imported,
-        message: "EasyOrders catalog page imported into TALID products.",
-        details: { page, limit, fetched: sourceProducts.length, saved: imported, skipped },
-      });
-      return json({
-        success: true,
-        mode: "import",
-        page,
-        fetched: sourceProducts.length,
-        prepared: uniqueRows.length,
-        imported,
-        skipped,
-        database_changed: imported > 0,
-        note: "New products remain draft. Existing product status and manually entered cost_price are preserved. Supplier cost is not inferred from the retail price.",
-      }, 200, origin);
-    } catch (error) {
-      const timedOut = error instanceof DOMException && error.name === "AbortError";
-      return json({ success: false, error: timedOut ? "EasyOrders catalog import timed out." : "EasyOrders catalog import failed.", details: timedOut ? undefined : (error instanceof Error ? error.message : String(error)) }, 502, origin);
-    } finally {
-      clearTimeout(timeout);
-    }
+      await adminClient.from("sync_logs").insert({ provider:"easyorders", entity_type:"products", direction:"inbound", status:"success", records_count:imported, message:"New EasyOrders products imported; duplicates skipped; source price saved as cost only.", details:{ page, limit, country_code:countryCode, currency_code:currency, fetched:sourceProducts.length, imported, skipped } });
+      return json({ success:true, mode:"import", page, country_code:countryCode, currency_code:currency, fetched:sourceProducts.length, imported, skipped, database_changed:imported>0, note:"Existing products were skipped. EasyOrders price is saved as supplier cost; TALID sale price remains empty until market pricing approval." }, 200, origin);
+    } catch(error) { const timedOut = error instanceof DOMException && error.name === "AbortError"; return json({ success:false, error:timedOut ? "EasyOrders catalog import timed out." : (error instanceof Error ? error.message : "Import failed.") }, 502, origin); }
+    finally { clearTimeout(timeout); }
   }
-
   // Preview and authenticated single-product detail reads are read-only.
   if (requestBody.mode === "detail") {
     const productId = asText(requestBody.product_id);
