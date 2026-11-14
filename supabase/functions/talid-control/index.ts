@@ -38,33 +38,11 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   },
 });
 
-function isProviderVerified(integrations: any[] | null, provider: string): boolean {
-  const integration = integrations?.find(
-    (item) => String(item.provider || "").toLowerCase() === provider
-  );
-  const status = String(integration?.status || "").toLowerCase();
-  return ["active", "verified", "connected"].includes(status);
+function isConnectionActive(connection: any | null): boolean {
+  return ["active", "verified", "connected"].includes(String(connection?.status || "").toLowerCase());
 }
 
-const REQUIRED_MARKETS = ["EG", "SA", "AE", "OM", "IQ"];
-
-function getMarketBlockers(markets: any[] | null): string[] {
-  const rows = markets || [];
-  const blockers: string[] = [];
-  for (const code of REQUIRED_MARKETS) {
-    const market = rows.find((item) =>
-      String(item.code || item.country_code || "").toUpperCase() === code
-    );
-    if (!market) {
-      blockers.push(`السوق ${code} غير مسجل`);
-    } else if (market.is_enabled !== true) {
-      blockers.push(`السوق ${code} غير مفعل`);
-    } else if (market.provider_verified !== true) {
-      blockers.push(`السوق ${code} غير موثق لدى Taager`);
-    }
-  }
-  return blockers;
-}
+const MARKET_CURRENCIES: Record<string,string> = {EG:"EGP",SA:"SAR",AE:"AED",OM:"OMR",IQ:"IQD"};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -156,54 +134,34 @@ Deno.serve(async (req: Request) => {
 
   // Load integrations and markets.
   const loadReadinessData = async () => {
-    const [
-      { data: integrations, error: integrationsError },
-      { data: markets, error: marketsError },
-    ] = await Promise.all([
-      admin.from("talid_integrations").select("*"),
-      admin.from("talid_markets").select("*"),
-    ]);
-
-    if (integrationsError) {
-      throw new Error(
-        `Integrations lookup failed: ${integrationsError.message}`
-      );
-    }
-
-    if (marketsError) {
-      throw new Error(
-        `Markets lookup failed: ${marketsError.message}`
-      );
-    }
-
-    return {
-      integrations: integrations || [],
-      markets: markets || [],
-    };
+    const {data: connections,error:connectionError}=await admin
+      .from("integration_connections")
+      .select("id,provider,display_name,status,config_public,created_at")
+      .eq("provider","easyorders")
+      .order("created_at",{ascending:false})
+      .limit(1);
+    if(connectionError) throw new Error(`EasyOrders connection lookup failed: ${connectionError.message}`);
+    const connection=connections?.[0]||null;
+    const config=(connection?.config_public||{}) as Record<string,unknown>;
+    const countryCode=String(config.country_code||"").toUpperCase();
+    const {data:country,error:countryError}=countryCode
+      ? await admin.from("countries").select("id,code,name_ar,currency_code,is_enabled").eq("code",countryCode).maybeSingle()
+      : {data:null,error:null};
+    if(countryError) throw new Error(`Market lookup failed: ${countryError.message}`);
+    return {connection,config,country,countryCode};
   };
 
-  // Build the readiness report.
+  // One EasyOrders store is switched between markets. Readiness applies to
+  // the currently confirmed store market, not all five markets simultaneously.
   const checkReadiness = async () => {
-    const { integrations, markets } = await loadReadinessData();
-
-    const blockers: string[] = [];
-
-    if (!isProviderVerified(integrations, "easyorders")) {
-      blockers.push("EasyOrders غير موثق");
-    }
-
-    if (!isProviderVerified(integrations, "taager")) {
-      blockers.push("Taager غير موثق");
-    }
-
-    blockers.push(...getMarketBlockers(markets));
-
-    return {
-      ready: blockers.length === 0,
-      blockers,
-      integrations,
-      markets,
-    };
+    const {connection,config,country,countryCode}=await loadReadinessData();
+    const blockers:string[]=[];
+    if(!connection || !isConnectionActive(connection)) blockers.push("اتصال EasyOrders غير نشط أو لم يتم التحقق منه");
+    if(!countryCode || !MARKET_CURRENCIES[countryCode]) blockers.push("لم يتم تأكيد دولة متجر EasyOrders");
+    if(!config.country_confirmed_at) blockers.push("يجب حفظ وتأكيد دولة المتجر في صفحة التكاملات");
+    if(countryCode && !country) blockers.push("الدولة المحددة غير موجودة في جدول الدول");
+    if(country && country.is_enabled!==true) blockers.push("السوق المحدد غير مفعل");
+    return {ready:blockers.length===0,blockers,connection,country,country_code:countryCode,currency_code:MARKET_CURRENCIES[countryCode]||null};
   };
 
   try {
