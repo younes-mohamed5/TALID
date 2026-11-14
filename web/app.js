@@ -578,7 +578,7 @@
               '<div><small>الكمية</small><b>' + escapeHTML(full.quantity ?? item.quantity ?? "غير مسجلة") + '</b></div>' +
               '<div><small>معرّف EasyOrders</small><b>' + escapeHTML(full.id || item.id || "غير مسجل") + '</b></div>' +
               '</div>' +
-              (full.description ? '<div class="eo-description"><h4>الوصف</h4><div>' + full.description + '</div></div>' : '<p class="muted">لا يوجد وصف في بيانات المنتج المستلمة.</p>') +
+              (full.description ? '<div class="eo-description"><h4>الوصف</h4><div>' + escapeHTML(full.description) + '</div></div>' : '<p class="muted">لا يوجد وصف في بيانات المنتج المستلمة.</p>') +
               '<p class="muted">تفاصيل المصدر: ' + escapeHTML((full.raw_fields || []).join("، ") || "بيانات المعاينة") + '</p>';
             $("eoCloseDetails").addEventListener("click", () => { details.hidden = true; });
           });
