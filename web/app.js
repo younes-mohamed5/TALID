@@ -473,7 +473,7 @@
         <p class="muted">يمكنك معاينة كتالوج EasyOrders الآن. المعاينة للقراءة فقط ولا تضيف أو تعدل أي منتج.</p>
         <button id="easyOrdersPreview" type="button">معاينة منتجات EasyOrders</button>
         <button id="easyOrdersImport" type="button">استيراد الكتالوج إلى TALID</button>
-        <p class="muted">الاستيراد يحفظ المنتجات كمسودات جديدة، ويحافظ على حالة المنتجات وتكلفة المورد المدخلة يدويًا للمنتجات الموجودة. لا يتم تفعيل البيع تلقائيًا.</p>
+        <p class="muted">الاستيراد يضيف المنتجات الجديدة فقط ويتخطى الموجود. سعر EasyOrders يُحفظ كتكلفة مورد، ولا يُحدد سعر البيع قبل تحليل السوق واعتماده.</p>
         <div id="easyOrdersPreviewResult" aria-live="polite" style="margin-top:12px"></div>
       </div>
       <div id="productRows"></div>`;
@@ -621,8 +621,8 @@
           pages++;
           if (Number(data.fetched || 0) < 50) break;
         }
-        resultBox.innerHTML = '<div class="notice">اكتمل استيراد الكتالوج: الصفحات ' + pages + '، المنتجات المقروءة ' + totalFetched + '، سجلات المنتجات المحفوظة/المحدثة ' + totalImported + '. المنتجات الجديدة في حالة مسودة.</div>';
-        notify("اكتمل استيراد كتالوج EasyOrders إلى TALID.");
+        resultBox.innerHTML = '<div class="notice">اكتمل استيراد الكتالوج: الصفحات ' + pages + '، المنتجات المقروءة ' + totalFetched + '، منتجات جديدة مستوردة ' + totalImported + '. المنتجات الجديدة في حالة مسودة.</div>';
+        notify("انتهى الاستيراد مع تخطي المنتجات الموجودة مسبقاً.");
         await renderProducts();
       } catch (error) {
         resultBox.innerHTML = '<div class="notice">توقف الاستيراد بعد ' + pages + ' صفحة. المنتجات التي حُفظت قبل الخطأ ستظل محفوظة. السبب: ' + escapeHTML(error.message) + '</div>';
@@ -897,23 +897,86 @@
       </div>
 
       <div class="panel">
+        <h3>إعداد متجر EasyOrders والسوق</h3>
+        <p class="muted">حدد الدولة التي يعمل عليها حساب EasyOrders، وأدخل رابط متجرك لفتحه مباشرة من لوحة الإدارة. تُستخدم عملة الدولة تلقائياً في كتالوج TALID.</p>
+        <label for="easyOrdersCountry">دولة متجر EasyOrders</label>
+        <select id="easyOrdersCountry" style="display:block;width:100%;padding:12px;margin:8px 0 14px;border:1px solid #d8deea;border-radius:10px">
+          <option value="">اختر الدولة</option>
+          <option value="EG">مصر – EGP</option>
+          <option value="SA">السعودية – SAR</option>
+          <option value="AE">الإمارات – AED</option>
+          <option value="OM">عُمان – OMR</option>
+          <option value="IQ">العراق – IQD</option>
+        </select>
+        <label for="easyOrdersStoreUrl">رابط متجر EasyOrders (اختياري)</label>
+        <input id="easyOrdersStoreUrl" type="url" placeholder="https://your-store..." style="display:block;width:100%;padding:12px;margin:8px 0 14px;border:1px solid #d8deea;border-radius:10px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="saveEasyOrdersStore" type="button">حفظ الدولة وإعدادات المتجر</button>
+          <button id="openEasyOrdersStore" type="button" class="secondary">الدخول إلى المتجر</button>
+        </div>
+        <p id="easyOrdersStoreStatus" class="muted" aria-live="polite">جارٍ تحميل إعدادات المتجر...</p>
+      </div>
+
+      <div class="panel">
         <h3>حالة التكاملات</h3>
-
         <div id="integrationTable"></div>
-
-        <p class="muted">
-          عدد أحداث Webhook المستلمة:
-          ${webhookCount}
-        </p>
-
-        <p class="muted">
-          لا يتم اعتبار أي تكامل نشطًا قبل اختبار الاتصال
-          والتحقق من الصلاحيات والبيانات الفعلية.
-        </p>
+        <p class="muted">عدد أحداث Webhook المستلمة: ${webhookCount}</p>
+        <p class="muted">لا يتم اعتبار أي تكامل نشطًا قبل اختبار الاتصال والتحقق من الصلاحيات والبيانات الفعلية.</p>
       </div>
     `;
 
     renderTable($("integrationTable"), integrations);
+
+    const storeStatus = $("easyOrdersStoreStatus");
+    try {
+      const { data, error } = await db.functions.invoke("easyorders-catalog-sync", { body: { mode: "get_store_config" } });
+      if (error) throw error;
+      const store = data?.store || {};
+      $("easyOrdersCountry").value = store.country_code || "";
+      $("easyOrdersStoreUrl").value = store.store_url || "";
+      storeStatus.textContent = store.country_code
+        ? "الدولة الحالية: " + store.country_code + " – العملة: " + (store.currency_code || "غير محددة")
+        : "لم يتم تحديد دولة المتجر بعد.";
+    } catch (error) {
+      storeStatus.textContent = "تعذر تحميل إعدادات المتجر: " + error.message;
+    }
+
+    $("saveEasyOrdersStore").onclick = async () => {
+      const button = $("saveEasyOrdersStore");
+      button.disabled = true;
+      try {
+        const countryCode = $("easyOrdersCountry").value;
+        if (!countryCode) throw new Error("اختر دولة متجر EasyOrders أولاً.");
+        const storeUrl = $("easyOrdersStoreUrl").value.trim();
+        const { data, error } = await db.functions.invoke("easyorders-catalog-sync", {
+          body: { mode: "configure_store", country_code: countryCode, store_url: storeUrl || null }
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || "تعذر حفظ الإعدادات.");
+        storeStatus.textContent = "تم حفظ الدولة " + data.country_code + " والعملة " + data.currency_code + ".";
+        notify("تم حفظ إعدادات متجر EasyOrders.");
+      } catch (error) {
+        storeStatus.textContent = error.message;
+        notify(error.message);
+      } finally {
+        button.disabled = false;
+      }
+    };
+
+    $("openEasyOrdersStore").onclick = () => {
+      const url = $("easyOrdersStoreUrl").value.trim();
+      if (!url) {
+        notify("أدخل رابط متجر EasyOrders ثم احفظه أولاً.");
+        return;
+      }
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "https:") throw new Error();
+        window.open(parsed.href, "_blank", "noopener,noreferrer");
+      } catch {
+        notify("رابط المتجر غير صحيح. استخدم رابط HTTPS.");
+      }
+    };
 
     $("readiness").onclick = async () => {
       const button = $("readiness");
