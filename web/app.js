@@ -517,6 +517,7 @@
       $("productRows").querySelectorAll("[data-build-landing]").forEach(b=>b.onclick=()=>showLandingBuilder(b.dataset.buildLanding));
     }
     function showLandingBuilder(productId){
+      let savedLandingSlug=null;
       const p=marketProducts.find(x=>x.id===productId), market=countries.find(x=>x.code===countrySelect.value), pr=marketPrices.find(x=>x.product_id===productId)||{};
       if(!p||!market)return;
       const images=Array.isArray(p.images)?p.images:[];
@@ -538,7 +539,7 @@
           <textarea id="lpCompetitors" rows="3" placeholder="اسم المنافس | السعر | رابط صفحة المنتج"></textarea>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button id="lpSuggestPrice" type="button">تحليل السعر المقترح</button>
-            <button id="lpSaveDraft" type="button">إنشاء صفحة الهبوط وحفظها</button>
+            <button id="lpSaveDraft" type="button">إنشاء صفحة الهبوط وحفظها</button><button id="lpPublish" type="button" disabled>نشر صفحة الهبوط</button>
           </div>
           <p id="lpStatus" class="muted">يُحسب السعر من التكلفة والشحن والهامش، وتُستخدم أسعار المنافسين التي تدخلها أنت فقط. لا يتم اختلاق بيانات منافسين.</p>
           <div id="lpPreview"></div>
@@ -567,11 +568,29 @@
           const pageData={product_id:p.id,country_id:market.id,slug,headline,subheadline:$("lpSubheadline").value.trim(),body,benefits:[],images:$("lpImages").value.split("\n").map(x=>x.trim()).filter(Boolean),sale_price:sale,currency_code:market.currency_code,seo_title:headline,seo_description:body.slice(0,155),competitor_analysis:{source:"admin_entered",competitors:competitorData,average_price:competitorData.length?competitorData.reduce((s,x)=>s+x.price,0)/competitorData.length:null,shipping_cost:shipping,margin_percent:Number(marginEl.value||30)},status:"ready_for_review",created_by:currentUser?.id||null,updated_at:new Date().toISOString()};
           const {error:pageError}=await db.from("product_landing_pages").upsert(pageData,{onConflict:"product_id,country_id"});
           if(pageError)throw pageError;
-          status.textContent="تم حفظ صفحة الهبوط كمسودة للمراجعة. لم يتم نشرها بعد.";
-          $("lpPreview").innerHTML='<a target="_blank" rel="noopener" href="landing.html?slug='+encodeURIComponent(slug)+'">معاينة صفحة الهبوط</a> — ستظهر بعد النشر.';
+          savedLandingSlug=slug;
+          $("lpPublish").disabled=false;
+          status.textContent="تم حفظ صفحة الهبوط للمراجعة. راجع الصور والسعر ثم اضغط نشر.";
+          $("lpPreview").innerHTML='<a target="_blank" rel="noopener" href="landing.html?slug='+encodeURIComponent(slug)+'">فتح رابط المعاينة بعد النشر</a>.';
           notify("تم حفظ صفحة الهبوط والسعر لهذا السوق.");
         }catch(error){status.textContent=error.message;notify(error.message);}
         finally{button.disabled=false;}
+      };
+      $("lpPublish").onclick=async()=>{
+        if(!savedLandingSlug){status.textContent="احفظ صفحة الهبوط أولاً.";return;}
+        const button=$("lpPublish");button.disabled=true;
+        try{
+          const {error:pageError}=await db.from("product_landing_pages").update({status:"published",published_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("slug",savedLandingSlug).eq("country_id",market.id);
+          if(pageError)throw pageError;
+          const {error:priceError}=await db.from("product_country_prices").update({is_available:true}).eq("product_id",p.id).eq("country_id",market.id);
+          if(priceError)throw priceError;
+          const {error:productError}=await db.from("products").update({status:"active"}).eq("id",p.id);
+          if(productError)throw productError;
+          const url=new URL("landing.html",location.href);url.searchParams.set("slug",savedLandingSlug);
+          $("lpPreview").innerHTML='<a target="_blank" rel="noopener" href="'+escapeHTML(url.href)+'">فتح صفحة الهبوط المنشورة</a>';
+          status.textContent="تم نشر صفحة الهبوط للسوق "+market.name_ar+".";
+          notify("تم نشر صفحة الهبوط.");
+        }catch(error){status.textContent="تعذر النشر: "+error.message;button.disabled=false;}
       };
     }
     countrySelect.addEventListener("change",()=>loadMarket().catch(e=>showError($("productRows"),e.message)));
