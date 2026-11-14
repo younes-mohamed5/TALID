@@ -414,13 +414,12 @@
           <h3>طريقة العمل</h3>
 
           <p class="muted">
-            Taager مسؤولة عن تنفيذ البيع والشحن والتحصيل
-            وفق إمكانات حسابك.
+            EasyOrders هي نقطة الربط الوحيدة للكتالوج والطلبات.
+            وهي متصلة بحساب Taager الخاص بك لتنفيذ الطلبات.
           </p>
 
           <p class="muted">
-            EasyOrders مسؤولة عن صفحات الهبوط واستقبال الطلبات
-            وفق إعدادات التكامل.
+            TALID تدير أسواقك وأسعارك وتكاليفك وتحلل النتائج.
           </p>
 
           <p class="muted">
@@ -805,7 +804,7 @@
     const view = $("view");
     view.innerHTML = `
       <div class="head"><div><h1>${pages.campaigns}</h1>
-      <p class="muted">إنشاء مسودات الحملات ومراجعة ميزانياتها. جميع ميزانيات ومصروفات الحملات تُسجل بالجنيه المصري (EGP).</p></div>
+      <p class="muted">ميزانية كل حملة تُحفظ بعملة السوق الذي تستهدفه، دون خلط عملات الأسواق المختلفة.</p></div>
       <span class="badge">لا نشر ولا إنفاق تلقائي</span></div>
       <div class="panel">
         <h3>إنشاء حملة — مسودة للمراجعة فقط</h3>
@@ -819,31 +818,43 @@
             <option value="">اختر السوق المستهدف</option>
             ${countries.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name_ar)} — ${escapeHTML(c.code)}</option>`).join("")}
           </select>
-          <label for="campaignBudget">الميزانية بالجنيه المصري (EGP)</label>
+          <label id="campaignBudgetLabel" for="campaignBudget">الميزانية بعملة السوق</label>
           <input id="campaignBudget" type="number" min="0" step="0.01" required placeholder="0.00">
           <button id="saveCampaign" type="submit">حفظ كمسودة</button>
         </form>
         <p class="muted">حفظ المسودة لا ينشئ إعلانًا ولا يربط بطاقة دفع ولا ينفق أي أموال.</p>
       </div>
       <div class="panel"><h3>الحملات المسجلة</h3><div id="campaignRows"></div></div>`;
+    const currencyForCountry = (country) => String(country?.currency_code || ({EG:"EGP",SA:"SAR",AE:"AED",OM:"OMR",IQ:"IQD"}[country?.code] || "غير محددة")).toUpperCase();
+    const updateCampaignCurrency = () => {
+      const country = countryMap.get($("campaignCountry").value);
+      const currency = currencyForCountry(country);
+      $("campaignBudgetLabel").textContent = "الميزانية بعملة " + (country?.name_ar || "السوق") + " (" + currency + ")";
+    };
+    $("campaignCountry").addEventListener("change", updateCampaignCurrency);
+    updateCampaignCurrency();
+
     $("campaignForm").addEventListener("submit", async event => {
       event.preventDefault();
       const button = $("saveCampaign");
       button.disabled = true;
       try {
         const budget = Number($("campaignBudget").value);
-        if (!Number.isFinite(budget) || budget < 0) throw new Error("أدخل ميزانية صحيحة بالجنيه المصري.");
+        if (!Number.isFinite(budget) || budget < 0) throw new Error("أدخل ميزانية صحيحة بعملة السوق المختار.");
+        const selectedCountry = countryMap.get($("campaignCountry").value);
+        if (!selectedCountry) throw new Error("اختر سوقاً صحيحاً للحملة.");
+        const campaignCurrency = currencyForCountry(selectedCountry);
         const {error} = await db.from("marketing_campaigns").insert({
           name: $("campaignName").value.trim(),
           platform: $("campaignPlatform").value,
           country_id: $("campaignCountry").value,
           status: "draft",
           budget,
-          currency_code: "EGP",
+          currency_code: campaignCurrency,
           content: {approval_required: true, publishing_enabled: false}
         });
         if (error) throw error;
-        notify("تم حفظ الحملة كمسودة بالجنيه المصري. لم يتم نشر إعلان.");
+        notify("تم حفظ الحملة كمسودة بعملة " + campaignCurrency + ". لم يتم نشر إعلان.");
         await renderCampaigns();
       } catch (error) {
         notify("تعذر حفظ المسودة: " + error.message);
@@ -855,17 +866,21 @@
       target.innerHTML = '<p class="muted">لا توجد حملات مسجلة حتى الآن.</p>';
       return;
     }
-    const fmt = v => v == null ? "غير محددة" : new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP"}).format(Number(v));
+    const fmt = (v,currency) => {
+      if(v==null) return "غير محددة";
+      try{return new Intl.NumberFormat("ar-EG",{style:"currency",currency:currency||"EGP",maximumFractionDigits:2}).format(Number(v));}
+      catch(_){return new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v))+" "+(currency||"");}
+    };
     target.innerHTML = `<div style="overflow:auto"><table>
       <thead><tr><th>الحملة</th><th>المنصة</th><th>السوق</th><th>الميزانية</th><th>العملة</th><th>الحالة</th><th>الإجراء</th></tr></thead>
       <tbody>${campaigns.map(c => `<tr>
         <td>${escapeHTML(c.name)}</td><td>${escapeHTML(c.platform)}</td>
         <td>${escapeHTML(countryMap.get(c.country_id)?.name_ar || "غير محدد")}</td>
-        <td>${fmt(c.budget)}</td><td>${escapeHTML(c.currency_code || "غير مسجلة")}</td>
+        <td>${fmt(c.budget,c.currency_code || currencyForCountry(countryMap.get(c.country_id)))}</td><td>${escapeHTML(c.currency_code || currencyForCountry(countryMap.get(c.country_id)))}</td>
         <td>${escapeHTML(c.status)}</td>
         <td>${["draft","pending_approval","paused"].includes(c.status) ? `<button type="button" data-campaign-id="${escapeHTML(c.id)}" data-next-status="draft">إبقاء كمسودة</button>` : "لا يوجد إجراء آمن"}</td>
       </tr>`).join("")}</tbody></table></div>
-      <p class="muted">الحملات القديمة التي لا تحمل العملة EGP تظهر كما هي للمراجعة ولا يتم تحويلها تلقائيًا.</p>`;
+      <p class="muted">الحملات القديمة التي لا تحمل عملة مسجلة تظهر كما هي للمراجعة؛ لا يتم تخمين عملتها أو تحويل قيمها تلقائيًا.</p>`;
     target.querySelectorAll("button[data-campaign-id]").forEach(button => {
       button.addEventListener("click", async () => {
         button.disabled = true;
@@ -889,13 +904,7 @@
   // =========================================
 
   async function renderIntegrations() {
-    const [
-      integrations,
-      webhookCount
-    ] = await Promise.all([
-      getRows("talid_integrations"),
-      getCount("talid_webhook_events")
-    ]);
+    const webhookCount = await getCount("talid_webhook_events");
 
     $("view").innerHTML = `
       <div class="head">
@@ -926,13 +935,11 @@
 
       <div class="panel">
         <h3>حالة التكاملات</h3>
-        <div id="integrationTable"></div>
+        <div id="integrationTable"><p class="muted">جارٍ تحميل حالة اتصال EasyOrders...</p></div>
         <p class="muted">عدد أحداث Webhook المستلمة: ${webhookCount}</p>
         <p class="muted">لا يتم اعتبار أي تكامل نشطًا قبل اختبار الاتصال والتحقق من الصلاحيات والبيانات الفعلية.</p>
       </div>
     `;
-
-    renderTable($("integrationTable"), integrations);
 
     const storeStatus = $("easyOrdersStoreStatus");
     try {
@@ -942,8 +949,9 @@
       $("easyOrdersCountry").value = store.country_code || "";
       $("easyOrdersStoreUrl").value = store.store_url || "";
       storeStatus.textContent = store.country_code
-        ? "الدولة الحالية: " + store.country_code + " – العملة: " + (store.currency_code || "غير محددة")
+        ? "الدولة الحالية: " + store.country_code + " – العملة: " + (store.currency_code || "غير محددة") + " – حالة الاتصال: " + (store.status || "غير محددة")
         : "لم يتم تحديد دولة المتجر بعد.";
+      $("integrationTable").innerHTML = '<div class="line"><span>EasyOrders — ' + escapeHTML(store.country_code || "لم تُحدد الدولة") + '</span><b>' + escapeHTML(store.status || "غير مهيأ") + '</b></div><p class="muted">Taager متصلة من خلال EasyOrders؛ لا يلزم تسجيل تكامل Taager مستقل داخل TALID.</p>';
     } catch (error) {
       storeStatus.textContent = "تعذر تحميل إعدادات المتجر: " + error.message;
     }
@@ -960,7 +968,8 @@
         });
         if (error) throw error;
         if (!data?.success) throw new Error(data?.error || "تعذر حفظ الإعدادات.");
-        storeStatus.textContent = "تم حفظ الدولة " + data.country_code + " والعملة " + data.currency_code + ".";
+        storeStatus.textContent = "تم حفظ الدولة " + data.country_code + " والعملة " + data.currency_code + ". حالة الاتصال: " + (data.status || "غير محددة");
+        $("integrationTable").innerHTML = '<div class="line"><span>EasyOrders — ' + escapeHTML(data.country_code) + '</span><b>' + escapeHTML(data.status || "غير محددة") + '</b></div><p class="muted">Taager متصلة عبر EasyOrders.</p>';
         notify("تم حفظ إعدادات متجر EasyOrders.");
       } catch (error) {
         storeStatus.textContent = error.message;
