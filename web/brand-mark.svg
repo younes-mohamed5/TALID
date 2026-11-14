@@ -1,11 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
-<title id="title">AL-GEBAIHY | الجبيهى</title>
-<desc id="desc">علامة هندسية باللونين الكحلي والذهبي</desc>
-<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F5DE91"/><stop offset=".55" stop-color="#D4AF37"/><stop offset="1" stop-color="#A77B18"/></linearGradient></defs>
-<rect x="5" y="5" width="118" height="118" rx="27" fill="#0B1F44"/>
-<rect x="11" y="11" width="106" height="106" rx="22" fill="none" stroke="url(#gold)" stroke-width="2.5"/>
-<path d="M38 40h51a8 8 0 0 1 8 8v7H58c-10 0-16 6-16 15s6 14 16 14h24" fill="none" stroke="url(#gold)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M81 84h8a8 8 0 0 1 0 16H63" fill="none" stroke="url(#gold)" stroke-width="7" stroke-linecap="round"/>
-<circle cx="51" cy="99" r="4" fill="#D4AF37"/>
-<path d="M31 29h66M31 108h66" stroke="#D4AF37" stroke-opacity=".35" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">الجبيهى | AL-GEBAIHY</title>
+<desc id="desc">صقر ذهبي فوق أقواس معمارية ترمز للأصالة والقوة والتميز</desc>
+<defs>
+  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F5D98A"/><stop offset=".48" stop-color="#B8860B"/><stop offset="1" stop-color="#7A5200"/></linearGradient>
+  <linearGradient id="wing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#343434"/><stop offset="1" stop-color="#080808"/></linearGradient>
+</defs>
+<rect width="512" height="512" rx="70" fill="#171717"/>
+<path d="M103 70c35 46 79 65 126 77-42 2-78-10-111-35 22 37 54 61 94 74-44-3-79-19-108-48 16 43 44 72 83 91-47-8-82-32-105-70 8 53 34 92 78 119-63-22-101-65-115-128-8-36 7-67 58-80z" fill="url(#wing)"/>
+<path d="M229 127c22-18 49-20 74-6l-24 15 33 12-38 7-26 25-25-15 14-18-28-4z" fill="url(#gold)"/>
+<path d="M292 135l47 9-31 16-26-5z" fill="#171717"/>
+<path d="M151 422V319c0-63 47-112 105-112s105 49 105 112v103h-31V319c0-45-32-79-74-79s-74 34-74 79v103z" fill="url(#gold)"/>
+<path d="M203 422V326c0-32 23-57 53-57s53 25 53 57v96h-29v-96c0-15-10-27-24-27s-24 12-24 27v96z" fill="url(#gold)"/>
+<path d="M255 422V338c0-13 10-23 23-23s23 10 23 23v84h-25v-79h-21v79z" fill="#171717"/>
+<path d="M126 438h260" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/>
 </svg>
