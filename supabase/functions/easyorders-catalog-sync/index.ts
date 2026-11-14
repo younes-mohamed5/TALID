@@ -216,14 +216,15 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         });
       }
+      const uniqueRows = [...new Map(rows.map((row) => [String(row.sku), row])).values()];
       let imported = 0;
-      if (rows.length) {
+      if (uniqueRows.length) {
         const { data: saved, error: saveError } = await adminClient
           .from("products")
-          .upsert(rows, { onConflict: "sku" })
+          .upsert(uniqueRows, { onConflict: "sku" })
           .select("id");
         if (saveError) {
-          return json({ success: false, error: "Could not save EasyOrders products to TALID.", details: saveError.message, fetched: sourceProducts.length, prepared: rows.length }, 500, origin);
+          return json({ success: false, error: "Could not save EasyOrders products to TALID.", details: saveError.message, fetched: sourceProducts.length, prepared: uniqueRows.length }, 500, origin);
         }
         imported = saved?.length ?? rows.length;
       }
@@ -241,7 +242,7 @@ Deno.serve(async (req) => {
         mode: "import",
         page,
         fetched: sourceProducts.length,
-        prepared: rows.length,
+        prepared: uniqueRows.length,
         imported,
         skipped,
         database_changed: imported > 0,
