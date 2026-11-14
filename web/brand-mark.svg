@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+<title id="title">AL-GEBAIHY | الجبيهى</title>
+<desc id="desc">علامة هندسية باللونين الكحلي والذهبي</desc>
+<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F5DE91"/><stop offset=".55" stop-color="#D4AF37"/><stop offset="1" stop-color="#A77B18"/></linearGradient></defs>
+<rect x="5" y="5" width="118" height="118" rx="27" fill="#0B1F44"/>
+<rect x="11" y="11" width="106" height="106" rx="22" fill="none" stroke="url(#gold)" stroke-width="2.5"/>
+<path d="M38 40h51a8 8 0 0 1 8 8v7H58c-10 0-16 6-16 15s6 14 16 14h24" fill="none" stroke="url(#gold)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M81 84h8a8 8 0 0 1 0 16H63" fill="none" stroke="url(#gold)" stroke-width="7" stroke-linecap="round"/>
+<circle cx="51" cy="99" r="4" fill="#D4AF37"/>
+<path d="M31 29h66M31 108h66" stroke="#D4AF37" stroke-opacity=".35" stroke-width="1"/>
+</svg>
