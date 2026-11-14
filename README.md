@@ -2,8 +2,8 @@
 
 Smart Commerce Management Platform
 
-هوية راسخة. تجارة ذكية.
-TRUST • INNOVATION • GROWTH
+الأصالة والقوة والتميز.
+AUTHENTICITY • STRENGTH • DISTINCTION
 
 ---
 
