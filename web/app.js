@@ -507,7 +507,7 @@
       button.disabled = true;
       resultBox.innerHTML = '<p class="muted">جارٍ الاتصال بـ EasyOrders وقراءة الكتالوج...</p>';
       try {
-        const { data, error } = await db.functions.invoke("easyorders-catalog-sync", { body: { mode: "preview" } });
+        const { data, error } = await db.functions.invoke("easyorders-catalog-sync", { body: { mode: "preview", limit: 50 } });
         if (error) {
           let message = error.message || "تعذر تنفيذ المعاينة";
           if (error.context && typeof error.context.json === "function") {
@@ -517,9 +517,53 @@
         }
         if (data?.error) throw new Error(data.error);
         const items = Array.isArray(data?.preview) ? data.preview : [];
-        const rowsHtml = items.map(item => '<tr><td>' + escapeHTML(item.name || "بدون اسم") + '</td><td>' + escapeHTML(item.sku || "—") + '</td><td>' + escapeHTML(item.taager_code || "—") + '</td><td>' + escapeHTML(item.price ?? "—") + '</td><td>' + escapeHTML(item.quantity ?? "—") + '</td></tr>').join("");
-        resultBox.innerHTML = '<div class="notice">استجابة EasyOrders: ' + Number(data.fetched || 0) + ' منتج. هذه معاينة فقط؛ لم يتم حفظ أو تعديل أي منتج.</div>' + (items.length ? '<div style="overflow:auto"><table><thead><tr><th>المنتج</th><th>SKU</th><th>Taager Code</th><th>السعر</th><th>الكمية</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' : '<p class="muted">' + escapeHTML(data.message || "لم تُرجع الواجهة منتجات في المعاينة.") + '</p>');
-        notify("اكتملت معاينة EasyOrders دون تعديل قاعدة البيانات.");
+        const safeImage = value => {
+          try { const url = new URL(String(value || "")); return ["https:", "http:"].includes(url.protocol) ? url.href : ""; }
+          catch (_) { return ""; }
+        };
+        const money = (value, currency) => {
+          if (value == null || value === "") return "غير مسجل";
+          const code = String(currency || "").toUpperCase();
+          try {
+            return code ? new Intl.NumberFormat("ar-EG", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(Number(value)) :
+              new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 2 }).format(Number(value));
+          } catch (_) { return new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 2 }).format(Number(value)) + (code ? " " + code : ""); }
+        };
+        const cards = items.map((item, index) => {
+          const image = safeImage(item.image);
+          return '<button type="button" class="eo-product-card" data-eo-product="' + index + '">' +
+            (image ? '<img class="eo-product-image" src="' + escapeHTML(image) + '" alt="' + escapeHTML(item.name || "صورة المنتج") + '" loading="lazy">' :
+              '<div class="eo-product-image eo-no-image">لا توجد صورة مرسلة من EasyOrders</div>') +
+            '<span class="eo-product-info"><b>' + escapeHTML(item.name || "بدون اسم") + '</b>' +
+            '<small>SKU: ' + escapeHTML(item.sku || "غير مسجل") + '</small>' +
+            '<strong>' + escapeHTML(money(item.price, item.currency)) + '</strong></span></button>';
+        }).join("");
+        resultBox.innerHTML =
+          '<div class="notice">تم استلام ' + Number(data.fetched || items.length) + ' منتج من EasyOrders. المعاينة لا تحفظ المنتجات داخل TALID.</div>' +
+          (items.length ? '<div class="eo-product-grid">' + cards + '</div>' : '<p class="muted">' + escapeHTML(data.message || "لم تُرجع الواجهة منتجات.") + '</p>') +
+          '<div id="eoProductDetails" class="eo-details" hidden></div>';
+        resultBox.querySelectorAll("[data-eo-product]").forEach(card => {
+          card.addEventListener("click", () => {
+            const item = items[Number(card.dataset.eoProduct)];
+            const details = $("eoProductDetails");
+            const image = safeImage(item.image);
+            details.hidden = false;
+            details.innerHTML =
+              '<div class="eo-details-head"><h3>' + escapeHTML(item.name || "تفاصيل المنتج") + '</h3><button type="button" id="eoCloseDetails" class="eo-close">إغلاق</button></div>' +
+              (image ? '<img class="eo-detail-image" src="' + escapeHTML(image) + '" alt="' + escapeHTML(item.name || "صورة المنتج") + '">' : '<p class="muted">لم يرسل EasyOrders رابط صورة لهذا المنتج في بيانات المعاينة الحالية.</p>') +
+              '<div class="eo-detail-grid">' +
+              '<div><small>السعر</small><b>' + escapeHTML(money(item.price, item.currency)) + '</b></div>' +
+              '<div><small>العملة</small><b>' + escapeHTML(item.currency || "غير محددة من المصدر") + '</b></div>' +
+              '<div><small>SKU</small><b>' + escapeHTML(item.sku || "غير مسجل") + '</b></div>' +
+              '<div><small>كود تاجر</small><b>' + escapeHTML(item.taager_code || "غير مسجل") + '</b></div>' +
+              '<div><small>الكمية</small><b>' + escapeHTML(item.quantity ?? "غير مسجلة") + '</b></div>' +
+              '<div><small>معرّف EasyOrders</small><b>' + escapeHTML(item.id || "غير مسجل") + '</b></div>' +
+              '</div><p class="muted">هذه هي الحقول التي أعادها اتصال EasyOrders الحالي. الوصف والتفاصيل الإضافية غير متاحة في استجابة المعاينة الحالية.</p>';
+            $("eoCloseDetails").addEventListener("click", () => { details.hidden = true; });
+            details.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        });
+        notify("اكتملت معاينة المنتجات. اضغط على أي منتج لعرض التفاصيل المتاحة.");
       } catch (error) {
         resultBox.innerHTML = '<div class="notice">' + escapeHTML(error.message) + '</div>';
       } finally {
