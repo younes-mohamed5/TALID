@@ -163,60 +163,77 @@ Deno.serve(async (req) => {
     return json({ success: true, country_code: countryCode, currency_code: currencyCode, store_url: storeUrl }, 200, origin);
   }
 
-  // Import is insert-only: known EasyOrders IDs/SKUs are skipped, never overwritten.
-  // EasyOrders listed price is stored as supplier cost; TALID sale price is set only after pricing approval.
+  // Market-aware import: one master product can be assigned to multiple country catalogs.
   if (requestBody.mode === "import") {
     const limit = Math.max(1, Math.min(50, Math.floor(Number(requestBody.limit ?? 50) || 50)));
     const page = Math.max(1, Math.floor(Number(requestBody.page ?? 1) || 1));
-    const { data: connection, error: connectionError } = await adminClient.from("integration_connections")
-      .select("config_public").eq("provider", "easyorders").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (connectionError) return json({ error: connectionError.message }, 500, origin);
-    const storeConfig = (connection?.config_public || {}) as Record<string, unknown>;
-    const countryCode = asText(storeConfig.country_code)?.toUpperCase();
-    const currency = countryCode ? ({ EG:"EGP", SA:"SAR", AE:"AED", OM:"OMR", IQ:"IQD" } as Record<string,string>)[countryCode] : null;
-    if (!countryCode || !currency) return json({ error: "حدد دولة متجر EasyOrders من صفحة التكاملات أولاً.", setup_required: true }, 409, origin);
-    const { data: country, error: countryError } = await adminClient.from("countries").select("id").eq("code", countryCode).maybeSingle();
-    if (countryError || !country) return json({ error: "الدولة المختارة غير موجودة في جدول الدول." }, 400, origin);
-    const endpoint = new URL("https://api.easy-orders.net/api/v1/external-apps/products");
-    endpoint.searchParams.set("page", String(page)); endpoint.searchParams.set("limit", String(limit));
-    const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 25000);
+    const requestedCountry = String(requestBody.country_code || "").trim().toUpperCase();
+    const currencyByCountry: Record<string,string> = { EG:"EGP", SA:"SAR", AE:"AED", OM:"OMR", IQ:"IQD" };
+    const targetCurrency = currencyByCountry[requestedCountry];
+    if (!targetCurrency) return json({ error:"اختر سوقاً صحيحاً قبل الاستيراد." },400,origin);
+    const {data:connection,error:connectionError}=await adminClient.from("integration_connections").select("config_public").eq("provider","easyorders").order("created_at",{ascending:false}).limit(1).maybeSingle();
+    if(connectionError) return json({error:connectionError.message},500,origin);
+    const config=(connection?.config_public||{}) as Record<string,unknown>;
+    const configuredCountry=asText(config.country_code)?.toUpperCase();
+    if(configuredCountry!==requestedCountry) return json({error:"الدولة المحددة في TALID لا تطابق الدولة المؤكدة في إعدادات EasyOrders. غيّر الدولة داخل EasyOrders ثم احفظها في TALID قبل الاستيراد.",configured_country:configuredCountry,requested_country:requestedCountry},409,origin);
+    if(asText(config.country_confirmed_at)==null) return json({error:"أكد إعدادات الدولة في صفحة التكاملات قبل الاستيراد."},409,origin);
+    const {data:country,error:countryError}=await adminClient.from("countries").select("id,code,currency_code").eq("code",requestedCountry).maybeSingle();
+    if(countryError||!country) return json({error:"الدولة غير موجودة في جدول countries."},400,origin);
+    const endpoint=new URL("https://api.easy-orders.net/api/v1/external-apps/products");
+    endpoint.searchParams.set("page",String(page)); endpoint.searchParams.set("limit",String(limit));
+    const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),25000);
     try {
-      const upstream = await fetch(endpoint.toString(), { method:"GET", headers:{ "Api-Key": EASYORDERS_API_KEY!, "Accept":"application/json" }, signal:controller.signal });
-      const raw = await upstream.text();
-      if (!upstream.ok) return json({ success:false, error:"EasyOrders rejected the catalog import.", upstream_status:upstream.status }, 502, origin);
-      let payload: unknown; try { payload = JSON.parse(raw); } catch { return json({ success:false, error:"EasyOrders returned a non-JSON catalog response." }, 502, origin); }
-      const sourceProducts = extractProducts(payload);
-      const prepared = sourceProducts.map((source) => {
-        const id = asText(source.id); const name = asText(source.name_ar) || asText(source.name) || asText(source.title);
-        const supplierSku = asText(source.sku) || asText(source.taager_code);
-        const sku = supplierSku || (id ? "EO-" + id : null);
-        const rawCost = source.sale_price ?? source.price; const cost = rawCost == null || rawCost === "" ? null : Number(rawCost);
-        const images = [...new Set([...(asText(source.thumb) ? [asText(source.thumb)!] : []), ...(Array.isArray(source.images) ? source.images.map(asText).filter((v): v is string => !!v) : [])])];
-        const qtyRaw = source.quantity; const qty = qtyRaw == null || qtyRaw === "" ? null : Number(qtyRaw);
-        const slugBase = (asText(source.slug) || name || "easyorders-product").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60) || "easyorders-product";
-        return { id, name, supplierSku, sku, cost: cost != null && Number.isFinite(cost) ? cost : null, images, qty: qty != null && Number.isFinite(qty) ? Math.max(0,Math.floor(qty)) : null, slug: slugBase + "-" + (id || crypto.randomUUID()).replace(/[^a-zA-Z0-9-]/g,"").slice(0,24), source };
-      }).filter((p) => p.id && p.name && p.sku);
-      const uniquePrepared = [...new Map(prepared.map((p) => [String(p.id), p])).values()];
-      const ids = [...new Set(uniquePrepared.map((p) => p.id!))];
-      const skus = [...new Set(uniquePrepared.map((p) => p.sku!))];
-      const supplierSkus = [...new Set(uniquePrepared.map((p) => p.supplierSku).filter((v): v is string => !!v))];
-      const knownIds = new Set<string>(); const knownSkus = new Set<string>();
-      if (ids.length) { const q = await adminClient.from("products").select("supplier_product_id").in("supplier_product_id",ids); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) if(row.supplier_product_id) knownIds.add(String(row.supplier_product_id)); }
-      if (skus.length) { const q = await adminClient.from("products").select("sku").in("sku",skus); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) if(row.sku) knownSkus.add(String(row.sku)); }
-      if (supplierSkus.length) { const q = await adminClient.from("products").select("supplier_sku").in("supplier_sku",supplierSkus); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) if(row.supplier_sku) knownSkus.add(String(row.supplier_sku)); }
-      const newProducts = uniquePrepared.filter((p) => !knownIds.has(p.id!) && !knownSkus.has(p.sku!) && !(p.supplierSku && knownSkus.has(p.supplierSku)));
-      let imported = 0; let skipped = prepared.length - newProducts.length;
-      for (const p of newProducts) {
-        const insert = await adminClient.from("products").insert({ sku:p.sku, name_ar:p.name, slug:p.slug, description:asText(p.source.description), supplier_name:"EasyOrders", supplier_product_id:p.id, supplier_sku:p.supplierSku, cost_price:p.cost, sale_price:null, currency_code:currency, stock_qty:p.qty, stock_status:p.qty == null ? "unknown" : p.qty > 0 ? "in_stock" : "out_of_stock", images:p.images, status:"draft", attributes:{ source:"easyorders", country_code:countryCode, taager_code:asText(p.source.taager_code) } }).select("id,cost_price").single();
-        if (insert.error) { if (insert.error.code === "23505") { skipped++; continue; } throw new Error(insert.error.message); }
-        const price = await adminClient.from("product_country_prices").upsert({ product_id:insert.data.id, country_id:country.id, cost_price:insert.data.cost_price, sale_price:null, shipping_cost:null, currency_code:currency, is_available:false }, { onConflict:"product_id,country_id" });
-        if (price.error) throw new Error("Product saved but country price record failed: " + price.error.message);
-        imported++;
+      const upstream=await fetch(endpoint.toString(),{method:"GET",headers:{"Api-Key":EASYORDERS_API_KEY!,"Accept":"application/json"},signal:controller.signal});
+      const raw=await upstream.text();
+      if(!upstream.ok) return json({success:false,error:"EasyOrders rejected the catalog import.",upstream_status:upstream.status},502,origin);
+      let payload:unknown; try{payload=JSON.parse(raw);}catch{return json({success:false,error:"EasyOrders returned non-JSON catalog data."},502,origin);}
+      const sourceProducts=extractProducts(payload);
+      let imported=0, linked=0, skipped=0, currencyMismatch=0, missingPrice=0;
+      const errors:string[]=[];
+      for(const source of sourceProducts){
+        const sourceId=asText(source.id);
+        const name=asText(source.name_ar)||asText(source.name)||asText(source.title);
+        const sourceSku=asText(source.sku)||asText(source.taager_code);
+        const sku=sourceSku||(sourceId?"EO-"+sourceId:null);
+        if(!sourceId||!name||!sku){skipped++;continue;}
+        const sourceCurrency=(asText(source.currency_code)||asText(source.currency)||"").toUpperCase();
+        if(sourceCurrency && sourceCurrency!==targetCurrency){currencyMismatch++;continue;}
+        const rawCost=source.sale_price??source.price;
+        const cost=rawCost==null||rawCost===""?null:Number(rawCost);
+        if(cost==null||!Number.isFinite(cost)||cost<0){missingPrice++;continue;}
+        let product:any=null;
+        const byId=await adminClient.from("products").select("id,sku,supplier_product_id,supplier_sku").eq("supplier_product_id",sourceId).limit(1).maybeSingle();
+        if(byId.error) throw new Error(byId.error.message);
+        product=byId.data;
+        if(!product){
+          const bySku=await adminClient.from("products").select("id,sku,supplier_product_id,supplier_sku").eq("sku",sku).limit(1).maybeSingle();
+          if(bySku.error) throw new Error(bySku.error.message);
+          product=bySku.data;
+        }
+        if(!product && sourceSku){
+          const bySupplierSku=await adminClient.from("products").select("id,sku,supplier_product_id,supplier_sku").eq("supplier_sku",sourceSku).limit(1).maybeSingle();
+          if(bySupplierSku.error) throw new Error(bySupplierSku.error.message);
+          product=bySupplierSku.data;
+        }
+        if(!product){
+          const slugBase=(asText(source.slug)||name).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,55)||"easyorders-product";
+          const images=[...new Set([...(asText(source.thumb)?[asText(source.thumb)!]:[]),...(Array.isArray(source.images)?source.images.map(asText).filter((v):v is string=>!!v):[])])];
+          const qtyRaw=source.quantity; const qty=qtyRaw==null||qtyRaw===""?null:Number(qtyRaw);
+          const inserted=await adminClient.from("products").insert({sku,name_ar:name,slug:slugBase+"-"+sourceId.replace(/[^a-zA-Z0-9-]/g,"").slice(0,20),description:asText(source.description),supplier_name:"EasyOrders",supplier_product_id:sourceId,supplier_sku:sourceSku,cost_price:cost,sale_price:null,currency_code:targetCurrency,stock_qty:qty!=null&&Number.isFinite(qty)?Math.max(0,Math.floor(qty)):null,stock_status:qty==null?"unknown":qty>0?"in_stock":"out_of_stock",images,status:"draft",attributes:{source:"easyorders",taager_code:asText(source.taager_code)}}).select("id,sku").single();
+          if(inserted.error){if(inserted.error.code==="23505"){skipped++;continue;}throw new Error(inserted.error.message);}
+          product=inserted.data; imported++;
+        }
+        const existingPrice=await adminClient.from("product_country_prices").select("id").eq("product_id",product.id).eq("country_id",country.id).maybeSingle();
+        if(existingPrice.error) throw new Error(existingPrice.error.message);
+        if(existingPrice.data){skipped++;continue;}
+        const priceInsert=await adminClient.from("product_country_prices").insert({product_id:product.id,country_id:country.id,cost_price:cost,sale_price:null,shipping_cost:null,currency_code:targetCurrency,is_available:false});
+        if(priceInsert.error){if(priceInsert.error.code==="23505"){skipped++;continue;}throw new Error(priceInsert.error.message);}
+        linked++;
       }
-      await adminClient.from("sync_logs").insert({ provider:"easyorders", entity_type:"products", direction:"inbound", status:"success", records_count:imported, message:"New EasyOrders products imported; duplicates skipped; source price saved as cost only.", details:{ page, limit, country_code:countryCode, currency_code:currency, fetched:sourceProducts.length, imported, skipped } });
-      return json({ success:true, mode:"import", page, country_code:countryCode, currency_code:currency, fetched:sourceProducts.length, imported, skipped, database_changed:imported>0, note:"Existing products were skipped. EasyOrders price is saved as supplier cost; TALID sale price remains empty until market pricing approval." }, 200, origin);
-    } catch(error) { const timedOut = error instanceof DOMException && error.name === "AbortError"; return json({ success:false, error:timedOut ? "EasyOrders catalog import timed out." : (error instanceof Error ? error.message : "Import failed.") }, 502, origin); }
-    finally { clearTimeout(timeout); }
+      await adminClient.from("sync_logs").insert({provider:"easyorders",entity_type:"products",direction:"inbound",status:"success",records_count:linked,message:"Market-scoped import; existing product master reused; per-market catalog assignment created.",details:{page,limit,country_code:requestedCountry,currency_code:targetCurrency,fetched:sourceProducts.length,new_master_products:imported,linked_to_market:linked,skipped,currency_mismatch:currencyMismatch,missing_price:missingPrice}});
+      return json({success:true,mode:"import",page,country_code:requestedCountry,currency_code:targetCurrency,fetched:sourceProducts.length,imported,linked,skipped,currency_mismatch:currencyMismatch,missing_price:missingPrice,database_changed:linked>0,note:"Products are assigned only to the selected country catalog. Existing master products are reused; existing country assignments are skipped. Supplier price is cost, sale price remains unset."},200,origin);
+    }catch(error){const timedOut=error instanceof DOMException&&error.name==="AbortError";return json({success:false,error:timedOut?"EasyOrders catalog import timed out.":(error instanceof Error?error.message:"Import failed.")},502,origin);}
+    finally{clearTimeout(timeout);}
   }
   // Preview and authenticated single-product detail reads are read-only.
   if (requestBody.mode === "detail") {

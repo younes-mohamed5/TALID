@@ -60,6 +60,9 @@ jobs:
             -v branch_name="$GITHUB_REF_NAME" \
             -v workflow_run_id="$GITHUB_RUN_ID" \
             -f supabase/deploy/0004_talid_deployment_tracking.sql
+          psql "$SUPABASE_DB_URL" \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/0005_talid_multi_market_landing_pages.sql
 
       - name: Deploy Supabase Edge Functions
         env:

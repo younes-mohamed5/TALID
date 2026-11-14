@@ -454,183 +454,190 @@
   // كتالوج المنتجات - عرض السجلات الفعلية فقط
   // =========================================
   async function renderProducts() {
-    const rows = await db.from("products")
-      .select("id,sku,supplier_sku,supplier_product_id,name_ar,name_en,supplier_name,cost_price,sale_price,currency_code,stock_status,status,updated_at")
-      .order("updated_at", { ascending: false })
-      .limit(200);
-    if (rows.error) throw rows.error;
-    const products = rows.data || [];
-    const view = $("view");
-    view.innerHTML = `
-      <div class="head">
-        <div><h1>${pages.products}</h1>
-        <p class="muted">عرض كتالوج المنتجات المحفوظ حاليًا في قاعدة البيانات، مع كود المورد والتكلفة والسعر.</p></div>
-        <span class="badge">عدد المنتجات: ${products.length}</span>
-      </div>
+    const [countryResult, productResult] = await Promise.all([
+      db.from("countries").select("id,code,name_ar,currency_code,currency_symbol").in("code",["EG","SA","AE","OM","IQ"]).order("code"),
+      db.from("products").select("id,sku,supplier_sku,supplier_product_id,name_ar,name_en,description,supplier_name,images,cost_price,sale_price,currency_code,stock_status,status,updated_at").order("updated_at",{ascending:false}).limit(500)
+    ]);
+    if(countryResult.error) throw countryResult.error;
+    if(productResult.error) throw productResult.error;
+    const countries=countryResult.data||[], products=productResult.data||[];
+    const view=$("view");
+    view.innerHTML=`
+      <div class="head"><div><h1>${pages.products}</h1><p class="muted">خمسة كتالوجات مستقلة داخل حساب EasyOrders واحد. كل منتج يُربط بالسوق الذي استُورد منه فقط.</p></div><span class="badge">${countries.length} أسواق</span></div>
       <div class="panel">
-        <label for="productSearch"><b>بحث بالاسم أو SKU / Taager Code</b></label>
-        <input id="productSearch" type="search" placeholder="اكتب اسم المنتج أو الكود" style="display:block;width:100%;max-width:520px;margin-top:8px;padding:12px;border:1px solid #d8deea;border-radius:10px">
-        <p class="muted">يمكنك معاينة كتالوج EasyOrders الآن. المعاينة للقراءة فقط ولا تضيف أو تعدل أي منتج.</p>
-        <button id="easyOrdersPreview" type="button">معاينة منتجات EasyOrders</button>
-        <button id="easyOrdersImport" type="button">استيراد الكتالوج إلى TALID</button>
-        <p class="muted">الاستيراد يضيف المنتجات الجديدة فقط ويتخطى الموجود. سعر EasyOrders يُحفظ كتكلفة مورد، ولا يُحدد سعر البيع قبل تحليل السوق واعتماده.</p>
+        <h3>اختر كتالوج الدولة</h3>
+        <select id="catalogCountry" style="width:100%;padding:12px;border:1px solid #d8deea;border-radius:10px">
+          ${countries.map(x=>'<option value="'+escapeHTML(x.code)+'">'+escapeHTML(x.name_ar)+' — '+escapeHTML(x.currency_code)+'</option>').join("")}
+        </select>
+        <p id="catalogMarketNotice" class="muted">الاستيراد متاح فقط عندما تطابق الدولة المختارة الدولة التي أكّدتها في إعدادات EasyOrders بعد تغييرها داخل المتجر.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="easyOrdersPreview" type="button">معاينة كتالوج الدولة</button>
+          <button id="easyOrdersImport" type="button">استيراد منتجات هذه الدولة</button>
+        </div>
         <div id="easyOrdersPreviewResult" aria-live="polite" style="margin-top:12px"></div>
       </div>
-      <div id="productRows"></div>`;
-    const target = $("productRows");
-    const draw = (query = "") => {
-      const q = query.trim().toLowerCase();
-      const filtered = products.filter(p => [p.name_ar,p.name_en,p.sku,p.supplier_sku,p.supplier_product_id]
-        .some(v => String(v || "").toLowerCase().includes(q)));
-      if (!filtered.length) {
-        target.innerHTML = '<div class="panel"><p class="muted">لا توجد منتجات مطابقة. إذا كان الكتالوج فارغًا، فهذا يعني أن مزامنة Taager لم تُنفذ بعد.</p></div>';
-        return;
-      }
-      const fmt = v => v == null ? "غير مسجل" : new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v));
-      target.innerHTML = `<div class="panel" style="overflow:auto"><table>
-        <thead><tr><th>المنتج</th><th>SKU</th><th>كود المورد</th><th>المورد</th><th>التكلفة</th><th>السعر</th><th>العملة</th><th>المخزون</th><th>الحالة</th></tr></thead>
-        <tbody>${filtered.map(p => `<tr>
-          <td>${escapeHTML(p.name_ar || p.name_en || "بدون اسم")}</td>
-          <td>${escapeHTML(p.sku || "غير مسجل")}</td>
-          <td>${escapeHTML(p.supplier_sku || p.supplier_product_id || "غير مسجل")}</td>
-          <td>${escapeHTML(p.supplier_name || "غير محدد")}</td>
-          <td>${fmt(p.cost_price)}</td><td>${fmt(p.sale_price)}</td>
-          <td>${escapeHTML(p.currency_code || "غير محددة")}</td>
-          <td>${escapeHTML(p.stock_status || "غير محدد")}</td>
-          <td>${escapeHTML(p.status || "غير محدد")}</td>
-        </tr>`).join("")}</tbody></table></div>`;
+      <div class="panel">
+        <h3>إضافة منتج يدوياً إلى السوق المحدد</h3>
+        <form id="manualProductForm" style="display:grid;gap:9px">
+          <input id="manualName" required placeholder="اسم المنتج">
+          <input id="manualSku" required placeholder="SKU / كود المورد">
+          <textarea id="manualDescription" rows="3" placeholder="وصف المنتج ومواصفاته"></textarea>
+          <input id="manualCost" type="number" min="0" step="0.01" required placeholder="تكلفة المورد بعملة السوق">
+          <input id="manualShipping" type="number" min="0" step="0.01" placeholder="تكلفة الشحن بعملة السوق">
+          <input id="manualSale" type="number" min="0" step="0.01" placeholder="سعر البيع المعتمد (اختياري)">
+          <textarea id="manualImages" rows="2" placeholder="روابط الصور، رابط في كل سطر"></textarea>
+          <button id="manualSave" type="submit">حفظ المنتج في كتالوج هذه الدولة</button>
+        </form>
+      </div>
+      <div class="panel"><h3>منتجات السوق المختار</h3><input id="productSearch" type="search" placeholder="بحث بالاسم أو SKU" style="width:100%;padding:12px;margin-bottom:12px"><div id="productRows">جارٍ تحميل المنتجات...</div></div>
+      <div id="landingBuilder"></div>
+    `;
+    const countrySelect=$("catalogCountry");
+    const money=(v,code)=>v==null?"غير محدد":new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v))+" "+code;
+    let marketPrices=[];
+    let marketProducts=[];
+    async function loadMarket(){
+      const market=countries.find(x=>x.code===countrySelect.value);
+      const {data:prices,error}=await db.from("product_country_prices").select("id,product_id,cost_price,sale_price,shipping_cost,currency_code,is_available").eq("country_id",market.id);
+      if(error)throw error;
+      marketPrices=prices||[];
+      const ids=marketPrices.map(x=>x.product_id);
+      marketProducts=products.filter(p=>ids.includes(p.id));
+      $("catalogMarketNotice").textContent="كتالوج "+market.name_ar+" مستقل — العملة "+market.currency_code+" — المنتجات المرتبطة بهذا السوق: "+marketProducts.length+".";
+      drawProducts();
+    }
+    function drawProducts(){
+      const q=($("productSearch").value||"").toLowerCase().trim();
+      const priceMap=new Map(marketPrices.map(x=>[x.product_id,x]));
+      const rows=marketProducts.filter(p=>[p.name_ar,p.name_en,p.sku,p.supplier_sku].some(v=>String(v||"").toLowerCase().includes(q)));
+      $("productRows").innerHTML=rows.length?'<div style="overflow:auto"><table><thead><tr><th>المنتج</th><th>SKU</th><th>تكلفة المورد</th><th>سعر البيع</th><th>العملة</th><th>صفحة الهبوط</th></tr></thead><tbody>'+rows.map(p=>{
+        const pr=priceMap.get(p.id)||{};
+        return '<tr><td>'+escapeHTML(p.name_ar||p.name_en)+'</td><td>'+escapeHTML(p.sku||"-")+'</td><td>'+money(pr.cost_price,pr.currency_code||"")+'</td><td>'+money(pr.sale_price,pr.currency_code||"")+'</td><td>'+escapeHTML(pr.currency_code||"")+'</td><td><button type="button" data-build-landing="'+escapeHTML(p.id)+'">إنشاء صفحة هبوط</button></td></tr>';
+      }).join("")+'</tbody></table></div>':'<p class="muted">لا توجد منتجات في كتالوج هذه الدولة بعد. استورد الكتالوج أو أضف منتجاً يدوياً.</p>';
+      $("productRows").querySelectorAll("[data-build-landing]").forEach(b=>b.onclick=()=>showLandingBuilder(b.dataset.buildLanding));
+    }
+    function showLandingBuilder(productId){
+      let savedLandingSlug=null;
+      const p=marketProducts.find(x=>x.id===productId), market=countries.find(x=>x.code===countrySelect.value), pr=marketPrices.find(x=>x.product_id===productId)||{};
+      if(!p||!market)return;
+      const images=Array.isArray(p.images)?p.images:[];
+      $("landingBuilder").innerHTML=`
+        <div class="panel" id="landingEditor">
+          <h3>منشئ صفحة الهبوط — ${escapeHTML(market.name_ar)}</h3>
+          <p class="muted">المنتج: ${escapeHTML(p.name_ar||p.name_en)} — العملة: ${escapeHTML(market.currency_code)}</p>
+          <input id="lpHeadline" value="${escapeHTML(p.name_ar||p.name_en||"عرض مميز")}" placeholder="عنوان الصفحة">
+          <input id="lpSubheadline" placeholder="عنوان فرعي جذاب">
+          <textarea id="lpBody" rows="5" placeholder="تفاصيل المنتج ومميزاته">${escapeHTML(p.description||"")}</textarea>
+          <label>روابط الصور (سطر لكل صورة)</label><textarea id="lpImages" rows="3">${escapeHTML(images.join("\n"))}</textarea>
+          <div class="grid">
+            <input id="lpCost" type="number" min="0" step="0.01" value="${pr.cost_price??p.cost_price??""}" placeholder="تكلفة المورد">
+            <input id="lpShipping" type="number" min="0" step="0.01" value="${pr.shipping_cost??""}" placeholder="الشحن">
+            <input id="lpMargin" type="number" min="1" max="90" value="30" placeholder="هامش الربح %">
+            <input id="lpSale" type="number" min="0" step="0.01" value="${pr.sale_price??""}" placeholder="سعر البيع">
+          </div>
+          <h4>مقارنة المنافسين (أدخل اسم المنافس والسعر المرصود، سطر لكل منافس)</h4>
+          <textarea id="lpCompetitors" rows="3" placeholder="اسم المنافس | السعر | رابط صفحة المنتج"></textarea>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="lpSuggestPrice" type="button">تحليل السعر المقترح</button>
+            <button id="lpSaveDraft" type="button">إنشاء صفحة الهبوط وحفظها</button><button id="lpPublish" type="button" disabled>نشر صفحة الهبوط</button>
+          </div>
+          <p id="lpStatus" class="muted">يُحسب السعر من التكلفة والشحن والهامش، وتُستخدم أسعار المنافسين التي تدخلها أنت فقط. لا يتم اختلاق بيانات منافسين.</p>
+          <div id="lpPreview"></div>
+        </div>`;
+      const costEl=$("lpCost"),shipEl=$("lpShipping"),marginEl=$("lpMargin"),saleEl=$("lpSale"),status=$("lpStatus");
+      $("lpSuggestPrice").onclick=()=>{
+        const cost=Number(costEl.value),shipping=Number(shipEl.value||0),margin=Number(marginEl.value||30);
+        if(!Number.isFinite(cost)||cost<=0||margin<=0||margin>=90){status.textContent="أدخل تكلفة صحيحة وهامشاً بين 1 و89%.";return;}
+        const competitorRows=$("lpCompetitors").value.split("\n").map(line=>line.split("|")).filter(parts=>parts.length>=2&&Number.isFinite(Number(parts[1]))&&Number(parts[1])>0);
+        const floor=(cost+shipping)/(1-margin/100);
+        const avg=competitorRows.length?competitorRows.reduce((s,x)=>s+Number(x[1]),0)/competitorRows.length:null;
+        const suggested=avg==null?floor:Math.max(floor,avg*0.97);
+        saleEl.value=suggested.toFixed(2);
+        status.textContent="السعر المقترح: "+money(suggested,market.currency_code)+". أساس الحساب: التكلفة + الشحن + هامش "+margin+"%"+(avg==null?"؛ لا توجد أسعار منافسين مدخلة.":"؛ متوسط أسعار المنافسين المدخلة "+money(avg,market.currency_code)+".");
+      };
+      $("lpSaveDraft").onclick=async()=>{
+        const button=$("lpSaveDraft");button.disabled=true;
+        try{
+          const headline=$("lpHeadline").value.trim(),body=$("lpBody").value.trim(),sale=Number(saleEl.value);
+          const cost=Number(costEl.value),shipping=Number(shipEl.value||0);
+          if(!headline||!body||!Number.isFinite(sale)||sale<=0||!Number.isFinite(cost)||cost<0)throw new Error("أكمل العنوان والوصف والتكلفة وسعر البيع.");
+          const {error:priceError}=await db.from("product_country_prices").upsert({product_id:p.id,country_id:market.id,cost_price:cost,shipping_cost:shipping,sale_price:sale,currency_code:market.currency_code,is_available:false},{onConflict:"product_id,country_id"});
+          if(priceError)throw priceError;
+          const competitorData=$("lpCompetitors").value.split("\n").map(line=>line.split("|")).filter(parts=>parts.length>=2).map(parts=>({name:parts[0].trim(),price:Number(parts[1]),url:(parts[2]||"").trim()})).filter(x=>x.name&&Number.isFinite(x.price)&&x.price>0);
+          const slug=(p.sku||p.id).toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"")+"-"+market.code.toLowerCase();
+          const pageData={product_id:p.id,country_id:market.id,slug,headline,subheadline:$("lpSubheadline").value.trim(),body,benefits:[],images:$("lpImages").value.split("\n").map(x=>x.trim()).filter(Boolean),sale_price:sale,currency_code:market.currency_code,seo_title:headline,seo_description:body.slice(0,155),competitor_analysis:{source:"admin_entered",competitors:competitorData,average_price:competitorData.length?competitorData.reduce((s,x)=>s+x.price,0)/competitorData.length:null,shipping_cost:shipping,margin_percent:Number(marginEl.value||30)},status:"ready_for_review",created_by:currentUser?.id||null,updated_at:new Date().toISOString()};
+          const {error:pageError}=await db.from("product_landing_pages").upsert(pageData,{onConflict:"product_id,country_id"});
+          if(pageError)throw pageError;
+          savedLandingSlug=slug;
+          $("lpPublish").disabled=false;
+          status.textContent="تم حفظ صفحة الهبوط للمراجعة. راجع الصور والسعر ثم اضغط نشر.";
+          $("lpPreview").innerHTML='<a target="_blank" rel="noopener" href="landing.html?slug='+encodeURIComponent(slug)+'">فتح رابط المعاينة بعد النشر</a>.';
+          notify("تم حفظ صفحة الهبوط والسعر لهذا السوق.");
+        }catch(error){status.textContent=error.message;notify(error.message);}
+        finally{button.disabled=false;}
+      };
+      $("lpPublish").onclick=async()=>{
+        if(!savedLandingSlug){status.textContent="احفظ صفحة الهبوط أولاً.";return;}
+        const button=$("lpPublish");button.disabled=true;
+        try{
+          const {error:pageError}=await db.from("product_landing_pages").update({status:"published",published_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("slug",savedLandingSlug).eq("country_id",market.id);
+          if(pageError)throw pageError;
+          const {error:priceError}=await db.from("product_country_prices").update({is_available:true}).eq("product_id",p.id).eq("country_id",market.id);
+          if(priceError)throw priceError;
+          // Keep the master product unchanged; publication is scoped to this country's landing page only.\n          const url=new URL("landing.html",location.href);url.searchParams.set("slug",savedLandingSlug);
+          $("lpPreview").innerHTML='<a target="_blank" rel="noopener" href="'+escapeHTML(url.href)+'">فتح صفحة الهبوط المنشورة</a>';
+          status.textContent="تم نشر صفحة الهبوط للسوق "+market.name_ar+".";
+          notify("تم نشر صفحة الهبوط.");
+        }catch(error){status.textContent="تعذر النشر: "+error.message;button.disabled=false;}
+      };
+    }
+    countrySelect.addEventListener("change",()=>loadMarket().catch(e=>showError($("productRows"),e.message)));
+    $("productSearch").addEventListener("input",drawProducts);
+    $("manualProductForm").addEventListener("submit",async event=>{
+      event.preventDefault();const button=$("manualSave");button.disabled=true;
+      try{
+        const market=countries.find(x=>x.code===countrySelect.value),sku=$("manualSku").value.trim(),name=$("manualName").value.trim(),cost=Number($("manualCost").value);
+        if(!market||!name||!sku||!Number.isFinite(cost)||cost<0)throw new Error("أدخل اسم المنتج والكود والتكلفة.");
+        let product=(await db.from("products").select("id").eq("sku",sku).maybeSingle());
+        if(product.error)throw product.error;
+        let productId=product.data?.id;
+        if(!productId){
+          const slug=(sku+"-"+market.code).toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"");
+          const inserted=await db.from("products").insert({sku,name_ar:name,slug,description:$("manualDescription").value.trim(),supplier_name:"manual",currency_code:market.currency_code,cost_price:cost,sale_price:null,images:$("manualImages").value.split("\n").map(x=>x.trim()).filter(Boolean),status:"draft",attributes:{source:"admin_manual"}}).select("id").single();
+          if(inserted.error)throw inserted.error;productId=inserted.data.id;
+        }
+        const {error}=await db.from("product_country_prices").upsert({product_id:productId,country_id:market.id,cost_price:cost,shipping_cost:Number($("manualShipping").value||0),sale_price:$("manualSale").value?Number($("manualSale").value):null,currency_code:market.currency_code,is_available:false},{onConflict:"product_id,country_id"});
+        if(error)throw error;notify("تمت إضافة المنتج إلى كتالوج "+market.name_ar+".");await renderProducts();
+      }catch(error){notify("تعذر حفظ المنتج: "+error.message);button.disabled=false;}
+    });
+    $("easyOrdersPreview").onclick=async()=>{
+      const button=$("easyOrdersPreview"),box=$("easyOrdersPreviewResult"),market=countries.find(x=>x.code===countrySelect.value);button.disabled=true;box.textContent="جارٍ قراءة كتالوج EasyOrders...";
+      try{
+        const {data,error}=await db.functions.invoke("easyorders-catalog-sync",{body:{mode:"preview",limit:50}});
+        if(error)throw error;if(!data?.success)throw new Error(data?.error||"فشلت المعاينة.");
+        const items=data.preview||[];box.innerHTML='<div class="notice">تم العثور على '+items.length+' منتج. تذكير: تأكد من تغيير دولة EasyOrders إلى '+escapeHTML(market.name_ar)+' قبل الاستيراد.</div>'+items.map(x=>'<div>'+escapeHTML(x.name)+' — '+escapeHTML(x.sku||"بدون SKU")+' — تكلفة المورد: '+escapeHTML(money(x.price,x.currency||market.currency_code))+'</div>').join("");
+      }catch(error){box.textContent=error.message;}finally{button.disabled=false;}
     };
-    $("productSearch").addEventListener("input", e => draw(e.target.value));
-    draw();
-
-    $("easyOrdersPreview").addEventListener("click", async () => {
-      const button = $("easyOrdersPreview");
-      const resultBox = $("easyOrdersPreviewResult");
-      button.disabled = true;
-      resultBox.innerHTML = '<p class="muted">جارٍ الاتصال بـ EasyOrders وقراءة الكتالوج...</p>';
-      try {
-        const { data, error } = await db.functions.invoke("easyorders-catalog-sync", { body: { mode: "preview", limit: 50 } });
-        if (error) {
-          let message = error.message || "تعذر تنفيذ المعاينة";
-          if (error.context && typeof error.context.json === "function") {
-            try { const details = await error.context.json(); message = details.error || details.message || message; } catch (_) {}
-          }
-          throw new Error(message);
+    $("easyOrdersImport").onclick=async()=>{
+      const button=$("easyOrdersImport"),previewButton=$("easyOrdersPreview"),box=$("easyOrdersPreviewResult"),market=countries.find(x=>x.code===countrySelect.value);
+      if(!market)return;
+      if(!confirm("هل غيّرت دولة EasyOrders يدوياً إلى "+market.name_ar+" وحفظت نفس الدولة في التكاملات؟ سيتم ربط المنتجات بهذا السوق فقط."))return;
+      button.disabled=true;previewButton.disabled=true;let imported=0,linked=0,skipped=0,fetched=0,pages=0;
+      try{
+        for(let page=1;page<=100;page++){
+          box.textContent="جارٍ استيراد منتجات "+market.name_ar+" — صفحة "+page;
+          const {data,error}=await db.functions.invoke("easyorders-catalog-sync",{body:{mode:"import",country_code:market.code,page,limit:50}});
+          if(error){let message=error.message||"تعذر الاستيراد";if(error.context&&typeof error.context.json==="function"){try{const x=await error.context.json();message=x.error||message;}catch(_){}}throw new Error(message);}
+          if(!data?.success)throw new Error(data?.error||"فشل استيراد الصفحة");
+          imported+=Number(data.imported||0);linked+=Number(data.linked||0);skipped+=Number(data.skipped||0);fetched+=Number(data.fetched||0);pages++;
+          if(Number(data.fetched||0)<50)break;
         }
-        if (data?.error) throw new Error(data.error);
-        const items = Array.isArray(data?.preview) ? data.preview : [];
-        const safeImage = value => {
-          try { const url = new URL(String(value || "")); return ["https:", "http:"].includes(url.protocol) ? url.href : ""; }
-          catch (_) { return ""; }
-        };
-        const money = (value, currency) => {
-          if (value == null || value === "") return "غير مسجل";
-          const code = String(currency || "").toUpperCase();
-          try {
-            return code ? new Intl.NumberFormat("ar-EG", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(Number(value)) :
-              new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 2 }).format(Number(value));
-          } catch (_) { return new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 2 }).format(Number(value)) + (code ? " " + code : ""); }
-        };
-        const cards = items.map((item, index) => {
-          const image = safeImage(item.image);
-          return '<button type="button" class="eo-product-card" data-eo-product="' + index + '">' +
-            (image ? '<img class="eo-product-image" src="' + escapeHTML(image) + '" alt="' + escapeHTML(item.name || "صورة المنتج") + '" loading="lazy">' :
-              '<div class="eo-product-image eo-no-image">لا توجد صورة مرسلة من EasyOrders</div>') +
-            '<span class="eo-product-info"><b>' + escapeHTML(item.name || "بدون اسم") + '</b>' +
-            '<small>SKU: ' + escapeHTML(item.sku || "غير مسجل") + '</small>' +
-            '<small>تكلفة المورد الواردة من EasyOrders</small><strong>' + escapeHTML(money(item.price, item.currency)) + '</strong></span></button>';
-        }).join("");
-        resultBox.innerHTML =
-          '<div class="notice">تم استلام ' + Number(data.fetched || items.length) + ' منتج من EasyOrders. المعاينة لا تحفظ المنتجات داخل TALID.</div>' +
-          (items.length ? '<div class="eo-product-grid">' + cards + '</div>' : '<p class="muted">' + escapeHTML(data.message || "لم تُرجع الواجهة منتجات.") + '</p>') +
-          '<div id="eoProductDetails" class="eo-details" hidden></div>';
-        resultBox.querySelectorAll("[data-eo-product]").forEach(card => {
-          card.addEventListener("click", async () => {
-            const item = items[Number(card.dataset.eoProduct)];
-            const details = $("eoProductDetails");
-            details.hidden = false;
-            details.innerHTML = '<p class="muted">جارٍ تحميل الصور والوصف والمواصفات من EasyOrders...</p>';
-            details.scrollIntoView({ behavior: "smooth", block: "start" });
-            let full = item;
-            try {
-              if (item.id) {
-                const response = await db.functions.invoke("easyorders-catalog-sync", {
-                  body: { mode: "detail", product_id: item.id }
-                });
-                if (response.error) throw response.error;
-                if (response.data?.error) throw new Error(response.data.error);
-                full = response.data?.product || item;
-              }
-            } catch (detailError) {
-              details.innerHTML = '<div class="notice">تعذر تحميل التفاصيل الإضافية: ' + escapeHTML(detailError.message || "خطأ في الاتصال") + '. نعرض بيانات المعاينة المتاحة.</div>';
-            }
-            const images = [...new Set([full.image, ...(Array.isArray(full.images) ? full.images : [])].map(safeImage).filter(Boolean))];
-            const image = images[0] || safeImage(item.image);
-            const currency = full.currency || item.currency || "";
-            const gallery = images.length ? '<div class="eo-gallery">' + images.map(url => '<img src="' + escapeHTML(url) + '" alt="' + escapeHTML(full.name || item.name || "صورة المنتج") + '" loading="lazy">').join("") + '</div>' : '<p class="muted">لم يوفر المصدر صورة لهذا المنتج.</p>';
-            details.innerHTML =
-              '<div class="eo-details-head"><h3>' + escapeHTML(full.name || item.name || "تفاصيل المنتج") + '</h3><button type="button" id="eoCloseDetails" class="eo-close">إغلاق</button></div>' +
-              gallery +
-              '<div class="eo-detail-grid">' +
-              '<div><small>سعر البيع</small><b>' + escapeHTML(money(full.price ?? item.price, currency)) + '</b></div>' +
-              '<div><small>السعر الأصلي</small><b>' + escapeHTML(money(full.original_price, currency)) + '</b></div>' +
-              '<div><small>العملة من المتجر</small><b>' + escapeHTML(currency || "غير محددة") + '</b></div>' +
-              '<div><small>SKU</small><b>' + escapeHTML(full.sku || item.sku || "غير مسجل") + '</b></div>' +
-              '<div><small>كود تاجر</small><b>' + escapeHTML(full.taager_code || item.taager_code || "غير مسجل") + '</b></div>' +
-              '<div><small>الكمية</small><b>' + escapeHTML(full.quantity ?? item.quantity ?? "غير مسجلة") + '</b></div>' +
-              '<div><small>معرّف EasyOrders</small><b>' + escapeHTML(full.id || item.id || "غير مسجل") + '</b></div>' +
-              '</div>' +
-              (full.description ? '<div class="eo-description"><h4>الوصف</h4><div>' + escapeHTML(full.description) + '</div></div>' : '<p class="muted">لا يوجد وصف في بيانات المنتج المستلمة.</p>') +
-              '<p class="muted">تفاصيل المصدر: ' + escapeHTML((full.raw_fields || []).join("، ") || "بيانات المعاينة") + '</p>';
-            $("eoCloseDetails").addEventListener("click", () => { details.hidden = true; });
-          });
-        });
-        notify("اكتملت معاينة المنتجات. اضغط على أي منتج لعرض التفاصيل المتاحة.");
-      } catch (error) {
-        resultBox.innerHTML = '<div class="notice">' + escapeHTML(error.message) + '</div>';
-      } finally {
-        button.disabled = false;
-      }
-    });
-    $("easyOrdersImport").addEventListener("click", async () => {
-      const button = $("easyOrdersImport");
-      const previewButton = $("easyOrdersPreview");
-      const resultBox = $("easyOrdersPreviewResult");
-      if (!confirm("سيتم استيراد صفحات كتالوج EasyOrders إلى جدول المنتجات في TALID. المنتجات الجديدة ستظل مسودات ولن يتم نشرها. هل تريد المتابعة؟")) return;
-      button.disabled = true;
-      previewButton.disabled = true;
-      let totalFetched = 0;
-      let totalImported = 0;
-      let pages = 0;
-      try {
-        for (let page = 1; page <= 100; page++) {
-          resultBox.innerHTML = '<p class="muted">جارٍ استيراد صفحة الكتالوج رقم ' + page + '...</p>';
-          const { data, error } = await db.functions.invoke("easyorders-catalog-sync", {
-            body: { mode: "import", page, limit: 50 }
-          });
-          if (error) {
-            let message = error.message || "تعذر استيراد الكتالوج";
-            if (error.context && typeof error.context.json === "function") {
-              try { const details = await error.context.json(); message = details.error || details.message || message; } catch (_) {}
-            }
-            throw new Error(message);
-          }
-          if (data?.error || data?.success === false) throw new Error(data.error || "فشل استيراد صفحة الكتالوج");
-          totalFetched += Number(data.fetched || 0);
-          totalImported += Number(data.imported || 0);
-          pages++;
-          if (Number(data.fetched || 0) < 50) break;
-        }
-        resultBox.innerHTML = '<div class="notice">انتهى الاستيراد: صفحات ' + pages + '، منتجات مقروءة ' + totalFetched + '، منتجات جديدة أضيفت ' + totalImported + '. تم تخطي المنتجات الموجودة مسبقاً. المنتجات الجديدة مسودات وسعر البيع غير محدد.</div>';
-        notify("انتهى الاستيراد مع تخطي المنتجات الموجودة مسبقاً.");
-        await renderProducts();
-      } catch (error) {
-        resultBox.innerHTML = '<div class="notice">توقف الاستيراد بعد ' + pages + ' صفحة. المنتجات التي حُفظت قبل الخطأ ستظل محفوظة. السبب: ' + escapeHTML(error.message) + '</div>';
-        notify("تعذر إكمال استيراد الكتالوج: " + error.message);
-        button.disabled = false;
-        previewButton.disabled = false;
-      }
-    });
+        box.innerHTML='<div class="notice">اكتمل كتالوج '+escapeHTML(market.name_ar)+': منتجات رئيسية جديدة '+imported+'، روابط سوق جديدة '+linked+'، متجاوزة '+skipped+'، مقروءة '+fetched+'.</div>';
+        notify("اكتملت مزامنة سوق "+market.name_ar);await renderProducts();
+      }catch(error){box.textContent="توقفت المزامنة بعد "+pages+" صفحات: "+error.message;notify(error.message);}
+      finally{button.disabled=false;previewButton.disabled=false;}
+    };
+    await loadMarket();
   }
 
   // =========================================
