@@ -138,6 +138,31 @@ Deno.serve(async (req) => {
     return json({ error: "Request body must be valid JSON." }, 400, origin);
   }
 
+  const marketCurrencies: Record<string, string> = { EG: "EGP", SA: "SAR", AE: "AED", OM: "OMR", IQ: "IQD" };
+
+  if (requestBody.mode === "get_store_config") {
+    const { data, error } = await adminClient.from("integration_connections").select("display_name,config_public").eq("provider", "easyorders").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) return json({ error: error.message }, 500, origin);
+    const config = (data?.config_public || {}) as Record<string, unknown>;
+    return json({ success: true, store: { country_code: asText(config.country_code), currency_code: asText(config.currency_code), store_url: asText(config.store_url), display_name: data?.display_name || "EasyOrders" } }, 200, origin);
+  }
+
+  if (requestBody.mode === "configure_store") {
+    const countryCode = String(requestBody.country_code || "").trim().toUpperCase();
+    const currencyCode = marketCurrencies[countryCode];
+    if (!currencyCode) return json({ error: "اختر دولة مدعومة." }, 400, origin);
+    const storeUrl = asText(requestBody.store_url);
+    if (storeUrl) { try { if (new URL(storeUrl).protocol !== "https:") throw new Error(); } catch { return json({ error: "رابط المتجر يجب أن يبدأ بـ https://." }, 400, origin); } }
+    const { data: country, error: countryError } = await adminClient.from("countries").select("id").eq("code", countryCode).maybeSingle();
+    if (countryError || !country) return json({ error: "الدولة المختارة غير موجودة في جدول الدول." }, 400, origin);
+    const { data: existing, error: findError } = await adminClient.from("integration_connections").select("id,config_public").eq("provider", "easyorders").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (findError) return json({ error: findError.message }, 500, origin);
+    const config = { ...((existing?.config_public || {}) as Record<string, unknown>), country_code: countryCode, currency_code: currencyCode, store_url: storeUrl, country_confirmed_at: new Date().toISOString() };
+    const result = existing ? await adminClient.from("integration_connections").update({ config_public: config, display_name: "EasyOrders - " + countryCode }).eq("id", existing.id) : await adminClient.from("integration_connections").insert({ provider: "easyorders", display_name: "EasyOrders - " + countryCode, status: "pending_verification", config_public: config });
+    if (result.error) return json({ error: result.error.message }, 500, origin);
+    return json({ success: true, country_code: countryCode, currency_code: currencyCode, store_url: storeUrl }, 200, origin);
+  }
+
   // Import mode writes EasyOrders catalog records into the existing products table.
   // New products remain draft; existing product status and manually entered cost_price are preserved.
   if (requestBody.mode === "import") {
