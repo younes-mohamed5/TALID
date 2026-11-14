@@ -196,12 +196,15 @@ Deno.serve(async (req) => {
         const slugBase = (asText(source.slug) || name || "easyorders-product").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60) || "easyorders-product";
         return { id, name, supplierSku, sku, cost: cost != null && Number.isFinite(cost) ? cost : null, images, qty: qty != null && Number.isFinite(qty) ? Math.max(0,Math.floor(qty)) : null, slug: slugBase + "-" + (id || crypto.randomUUID()).replace(/[^a-zA-Z0-9-]/g,"").slice(0,24), source };
       }).filter((p) => p.id && p.name && p.sku);
-      const ids = [...new Set(prepared.map((p) => p.id!))];
-      const skus = [...new Set(prepared.map((p) => p.sku!))];
+      const uniquePrepared = [...new Map(prepared.map((p) => [String(p.id), p])).values()];
+      const ids = [...new Set(uniquePrepared.map((p) => p.id!))];
+      const skus = [...new Set(uniquePrepared.map((p) => p.sku!))];
+      const supplierSkus = [...new Set(uniquePrepared.map((p) => p.supplierSku).filter((v): v is string => !!v))];
       const knownIds = new Set<string>(); const knownSkus = new Set<string>();
-      if (ids.length) { const q = await adminClient.from("products").select("supplier_product_id").eq("supplier_name","EasyOrders").in("supplier_product_id",ids); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) if(row.supplier_product_id) knownIds.add(String(row.supplier_product_id)); }
-      if (skus.length) { const q = await adminClient.from("products").select("sku,supplier_sku").or("sku.in.(" + skus.join(",") + "),supplier_sku.in.(" + skus.join(",") + ")"); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) { if(row.sku) knownSkus.add(String(row.sku)); if(row.supplier_sku) knownSkus.add(String(row.supplier_sku)); } }
-      const newProducts = prepared.filter((p) => !knownIds.has(p.id!) && !knownSkus.has(p.sku!));
+      if (ids.length) { const q = await adminClient.from("products").select("supplier_product_id").in("supplier_product_id",ids); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) if(row.supplier_product_id) knownIds.add(String(row.supplier_product_id)); }
+      if (skus.length) { const q = await adminClient.from("products").select("sku").in("sku",skus); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) if(row.sku) knownSkus.add(String(row.sku)); }
+      if (supplierSkus.length) { const q = await adminClient.from("products").select("supplier_sku").in("supplier_sku",supplierSkus); if(q.error) throw new Error(q.error.message); for(const row of q.data||[]) if(row.supplier_sku) knownSkus.add(String(row.supplier_sku)); }
+      const newProducts = uniquePrepared.filter((p) => !knownIds.has(p.id!) && !knownSkus.has(p.sku!) && !(p.supplierSku && knownSkus.has(p.supplierSku)));
       let imported = 0; let skipped = prepared.length - newProducts.length;
       for (const p of newProducts) {
         const insert = await adminClient.from("products").insert({ sku:p.sku, name_ar:p.name, slug:p.slug, description:asText(p.source.description), supplier_name:"EasyOrders", supplier_product_id:p.id, supplier_sku:p.supplierSku, cost_price:p.cost, sale_price:null, currency_code:currency, stock_qty:p.qty, stock_status:p.qty == null ? "unknown" : p.qty > 0 ? "in_stock" : "out_of_stock", images:p.images, status:"draft", attributes:{ source:"easyorders", country_code:countryCode, taager_code:asText(p.source.taager_code) } }).select("id,cost_price").single();
