@@ -51,6 +51,29 @@ function extractProducts(payload: unknown): Record<string, unknown>[] {
   return [];
 }
 
+
+async function readEasyOrdersProduct(productId: string): Promise<Record<string, unknown>> {
+  const url = new URL("https://api.easy-orders.net/api/v1/external-apps/products/" + encodeURIComponent(productId));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { "Api-Key": EASYORDERS_API_KEY!, "Accept": "application/json" },
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    if (!response.ok) throw new Error("EasyOrders product detail request failed (" + response.status + ").");
+    let payload: unknown;
+    try { payload = JSON.parse(raw); } catch { throw new Error("EasyOrders returned a non-JSON product detail response."); }
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("Unexpected EasyOrders product detail format.");
+    const root = payload as Record<string, unknown>;
+    const nested = root.data && typeof root.data === "object" && !Array.isArray(root.data)
+      ? root.data as Record<string, unknown> : root;
+    return nested;
+  } finally { clearTimeout(timeout); }
+}
+
 function extractMeta(payload: unknown) {
   if (!payload || typeof payload !== "object") return {};
   const root = payload as Record<string, unknown>;
@@ -115,9 +138,44 @@ Deno.serve(async (req) => {
     return json({ error: "Request body must be valid JSON." }, 400, origin);
   }
 
-  // This endpoint is deliberately preview-only. No database insert/update/delete code exists here.
+  // Preview and authenticated single-product detail reads are read-only.
+  if (requestBody.mode === "detail") {
+    const productId = asText(requestBody.product_id);
+    if (!productId) return json({ error: "product_id is required for detail mode." }, 400, origin);
+    try {
+      const product = await readEasyOrdersProduct(productId);
+      const imageList = Array.isArray(product.images) ? product.images.map(asText).filter(Boolean) : [];
+      const thumb = asText(product.thumb);
+      return json({
+        success: true,
+        mode: "detail",
+        product: {
+          id: asText(product.id) || productId,
+          name: asText(product.name) || asText(product.name_ar) || asText(product.title) || "بدون اسم",
+          description: asText(product.description),
+          slug: asText(product.slug),
+          sku: asText(product.sku),
+          taager_code: asText(product.taager_code),
+          price: product.sale_price ?? product.price ?? null,
+          original_price: product.price ?? null,
+          quantity: product.quantity ?? null,
+          currency: asText(product.currency_code) || asText(product.currency) || null,
+          image: thumb || imageList[0] || null,
+          images: [...new Set([...(thumb ? [thumb] : []), ...imageList])],
+          categories: Array.isArray(product.categories) ? product.categories : [],
+          variations: Array.isArray(product.variations) ? product.variations : [],
+          variants: Array.isArray(product.variants) ? product.variants : [],
+          raw_fields: Object.keys(product),
+        },
+        database_changed: false,
+      }, 200, origin);
+    } catch (error) {
+      return json({ success: false, error: error instanceof Error ? error.message : "Could not read product details." }, 502, origin);
+    }
+  }
+
   if (requestBody.mode && requestBody.mode !== "preview") {
-    return json({ error: "This function is preview-only. Product import is not enabled.", mode: "preview_only" }, 409, origin);
+    return json({ error: "Unsupported mode. Only preview and detail reads are enabled.", mode: "read_only" }, 409, origin);
   }
 
   const requestedLimit = Number(requestBody.limit ?? 30);
@@ -170,7 +228,11 @@ Deno.serve(async (req) => {
       price: product.sale_price ?? product.price ?? null,
       quantity: product.quantity ?? null,
       image: asText(product.thumb) || (Array.isArray(product.images) ? asText(product.images[0]) : null),
-      currency: asText(product.currency_code) || null,
+      images: Array.isArray(product.images) ? product.images.map(asText).filter(Boolean) : [],
+      description: asText(product.description),
+      slug: asText(product.slug),
+      original_price: product.price ?? null,
+      currency: asText(product.currency_code) || asText(product.currency) || null,
     }));
 
     return json({
