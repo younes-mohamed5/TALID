@@ -472,6 +472,8 @@
         <input id="productSearch" type="search" placeholder="اكتب اسم المنتج أو الكود" style="display:block;width:100%;max-width:520px;margin-top:8px;padding:12px;border:1px solid #d8deea;border-radius:10px">
         <p class="muted">يمكنك معاينة كتالوج EasyOrders الآن. المعاينة للقراءة فقط ولا تضيف أو تعدل أي منتج.</p>
         <button id="easyOrdersPreview" type="button">معاينة منتجات EasyOrders</button>
+        <button id="easyOrdersImport" type="button">استيراد الكتالوج إلى TALID</button>
+        <p class="muted">الاستيراد يحفظ المنتجات كمسودات جديدة، ويحافظ على حالة المنتجات وتكلفة المورد المدخلة يدويًا للمنتجات الموجودة. لا يتم تفعيل البيع تلقائيًا.</p>
         <div id="easyOrdersPreviewResult" aria-live="polite" style="margin-top:12px"></div>
       </div>
       <div id="productRows"></div>`;
@@ -588,6 +590,45 @@
         resultBox.innerHTML = '<div class="notice">' + escapeHTML(error.message) + '</div>';
       } finally {
         button.disabled = false;
+      }
+    });
+    $("easyOrdersImport").addEventListener("click", async () => {
+      const button = $("easyOrdersImport");
+      const previewButton = $("easyOrdersPreview");
+      const resultBox = $("easyOrdersPreviewResult");
+      if (!confirm("سيتم استيراد صفحات كتالوج EasyOrders إلى جدول المنتجات في TALID. المنتجات الجديدة ستظل مسودات ولن يتم نشرها. هل تريد المتابعة؟")) return;
+      button.disabled = true;
+      previewButton.disabled = true;
+      let totalFetched = 0;
+      let totalImported = 0;
+      let pages = 0;
+      try {
+        for (let page = 1; page <= 100; page++) {
+          resultBox.innerHTML = '<p class="muted">جارٍ استيراد صفحة الكتالوج رقم ' + page + '...</p>';
+          const { data, error } = await db.functions.invoke("easyorders-catalog-sync", {
+            body: { mode: "import", page, limit: 50 }
+          });
+          if (error) {
+            let message = error.message || "تعذر استيراد الكتالوج";
+            if (error.context && typeof error.context.json === "function") {
+              try { const details = await error.context.json(); message = details.error || details.message || message; } catch (_) {}
+            }
+            throw new Error(message);
+          }
+          if (data?.error || data?.success === false) throw new Error(data.error || "فشل استيراد صفحة الكتالوج");
+          totalFetched += Number(data.fetched || 0);
+          totalImported += Number(data.imported || 0);
+          pages++;
+          if (Number(data.fetched || 0) < 50) break;
+        }
+        resultBox.innerHTML = '<div class="notice">اكتمل استيراد الكتالوج: الصفحات ' + pages + '، المنتجات المقروءة ' + totalFetched + '، سجلات المنتجات المحفوظة/المحدثة ' + totalImported + '. المنتجات الجديدة في حالة مسودة.</div>';
+        notify("اكتمل استيراد كتالوج EasyOrders إلى TALID.");
+        await renderProducts();
+      } catch (error) {
+        resultBox.innerHTML = '<div class="notice">توقف الاستيراد بعد ' + pages + ' صفحة. المنتجات التي حُفظت قبل الخطأ ستظل محفوظة. السبب: ' + escapeHTML(error.message) + '</div>';
+        notify("تعذر إكمال استيراد الكتالوج: " + error.message);
+        button.disabled = false;
+        previewButton.disabled = false;
       }
     });
   }
