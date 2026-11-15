@@ -350,7 +350,8 @@ Deno.serve(async (req) => {
     const productId = asText(requestBody.product_id);
     if (!productId) return json({ error: "product_id is required for detail mode." }, 400, origin);
     try {
-      if (!requestedApiKey) return json({ error: "لا يوجد مفتاح API للسوق المحدد. أكد الدولة في التكاملات أو أضف EASYORDERS_API_KEY_" + requestedCountry + " في أسرار Supabase." }, 409, origin);\n      const product = await readEasyOrdersProduct(productId, requestedApiKey);
+      if (!requestedApiKey) return json({ error: "لا يوجد مفتاح API للسوق المحدد. أكد الدولة في التكاملات أو أضف EASYORDERS_API_KEY_" + requestedCountry + " في أسرار Supabase." }, 409, origin);
+      const product = await readEasyOrdersProduct(productId, requestedApiKey);
       const imageList = Array.isArray(product.images) ? product.images.map(asText).filter(Boolean) : [];
       const thumb = asText(product.thumb);
       return json({
@@ -385,7 +386,11 @@ Deno.serve(async (req) => {
     return json({ error: "Unsupported mode. Only preview and detail reads are enabled.", mode: "read_only" }, 409, origin);
   }
 
-  if (!requestedCountry || !marketCurrencies[requestedCountry]) return json({ error: "اختر الدولة أولاً قبل معاينة كتالوج EasyOrders." }, 400, origin);\n  if (configuredCountry !== requestedCountry || !asText(activeConfig.country_confirmed_at)) return json({ error: "الدولة المختارة لا تطابق الدولة المؤكدة في إعدادات EasyOrders. غيّرها في EasyOrders ثم أكدها في تكاملات الجبيهى.", configured_country: configuredCountry, requested_country: requestedCountry }, 409, origin);\n  if (!requestedApiKey) return json({ error: "لا يوجد مفتاح API لسوق " + requestedCountry + ". أضف EASYORDERS_API_KEY_" + requestedCountry + " أو استخدم المفتاح الحالي بعد تأكيد الدولة المطابقة." }, 409, origin);\n\n  const requestedLimit = Number(requestBody.limit ?? 30);
+  if (!requestedCountry || !marketCurrencies[requestedCountry]) return json({ error: "اختر الدولة أولاً قبل معاينة كتالوج EasyOrders." }, 400, origin);
+  if (configuredCountry !== requestedCountry || !asText(activeConfig.country_confirmed_at)) return json({ error: "الدولة المختارة لا تطابق الدولة المؤكدة في إعدادات EasyOrders. غيّرها في EasyOrders ثم أكدها في تكاملات الجبيهى.", configured_country: configuredCountry, requested_country: requestedCountry }, 409, origin);
+  if (!requestedApiKey) return json({ error: "لا يوجد مفتاح API لسوق " + requestedCountry + ". أضف EASYORDERS_API_KEY_" + requestedCountry + " أو استخدم المفتاح الحالي بعد تأكيد الدولة المطابقة." }, 409, origin);
+
+  const requestedLimit = Number(requestBody.limit ?? 30);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(50, Math.floor(requestedLimit))) : 30;
   const page = 1;
   const endpoint = new URL("https://api.easy-orders.net/api/v1/external-apps/products");
