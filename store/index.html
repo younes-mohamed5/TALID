@@ -174,13 +174,16 @@ const cartItems=[];let toastTimer,supabase=null;
 const STORE_MARKET_KEY="al_gebaihy_store_market_v1";
 const VALID_MARKETS=new Set(["EG","SA","AE","OM","IQ"]);
 function readStoreMarket(){
- // Prefer the user's last explicit selection over a stale market query string.
- try{const saved=localStorage.getItem(STORE_MARKET_KEY)?.toUpperCase();if(VALID_MARKETS.has(saved))return saved;}catch(_e){}
+ // The URL is the authoritative shareable state. A saved value is only a fallback.
+ // This prevents an old localStorage/cookie value (often EG) from overriding
+ // a market selected by the customer and written to ?market=SA/AE/etc.
+ const queryMarket=new URLSearchParams(location.search).get("market")?.trim().toUpperCase();
+ if(VALID_MARKETS.has(queryMarket))return queryMarket;
+ try{const saved=localStorage.getItem(STORE_MARKET_KEY)?.trim().toUpperCase();if(VALID_MARKETS.has(saved))return saved;}catch(_e){}
  const cookie=document.cookie.split(";").map(x=>x.trim()).find(x=>x.startsWith(STORE_MARKET_KEY+"="));
- const cookieMarket=cookie?decodeURIComponent(cookie.slice(STORE_MARKET_KEY.length+1)).toUpperCase():"";
- if(VALID_MARKETS.has(cookieMarket))return cookieMarket;
- const queryMarket=new URLSearchParams(location.search).get("market")?.toUpperCase();
- return VALID_MARKETS.has(queryMarket)?queryMarket:"EG";
+ let cookieMarket="";
+ try{cookieMarket=cookie?decodeURIComponent(cookie.slice(STORE_MARKET_KEY.length+1)).toUpperCase():"";}catch(_e){}
+ return VALID_MARKETS.has(cookieMarket)?cookieMarket:"EG";
 }
 function persistStoreMarket(market){
  if(!VALID_MARKETS.has(market))return;
@@ -233,14 +236,21 @@ async function loadStore(){
    supabase.from("product_landing_pages").select("product_id,slug,headline,subheadline,body,images,sale_price,currency_code,status").eq("country_id",market.id).eq("status","published")
   ]);
   if(pe)throw pe;if(le)throw le;
-  const available=(prices||[]).filter(x=>Number(x.sale_price)>0&&x.currency_code===market.currency_code);
-  const ids=available.map(x=>x.product_id);
-  if(!ids.length){renderCards([],market.currency_code);status.textContent="لا توجد أسعار بيع معتمدة في سوق "+market.name_ar+" حتى الآن.";return;}
+  const available=(prices||[]).filter(x=>Number(x.sale_price)>0&&String(x.currency_code||"").toUpperCase()===String(market.currency_code||"").toUpperCase());
+  const ids=[...new Set(available.map(x=>x.product_id).filter(Boolean))];
+  if(!ids.length){
+   renderCards([],market.currency_code);
+   status.textContent="السوق المحدد: "+market.name_ar+" — لا توجد أسعار بيع مفعّلة بعد. الأسعار المقروءة: "+(prices||[]).length+"، الصفحات المنشورة: "+(pages||[]).length+". راجع توزيع المنتج واعتماده لهذا السوق.";
+   return;
+  }
   const {data:products,error:pr}=await supabase.from("products").select("id,sku,name_ar,name_en,description,images,status").in("id",ids).eq("status","active");
   if(pr)throw pr;
   const pageMap=new Map((pages||[]).map(x=>[x.product_id,x])),priceMap=new Map(available.map(x=>[x.product_id,x]));
   const rows=(products||[]).filter(p=>pageMap.has(p.id)).map(product=>({product,price:priceMap.get(product.id),landing:pageMap.get(product.id)}));
-  renderCards(rows,market.currency_code);status.textContent=rows.length+" منتج معتمد في "+market.name_ar+" — الأسعار بعملة السوق.";
+  renderCards(rows,market.currency_code);
+  status.textContent=rows.length
+   ? rows.length+" منتج معتمد في "+market.name_ar+" — الأسعار بعملة السوق."
+   : "السوق: "+market.name_ar+" — الأسعار المتاحة: "+available.length+"، المنتجات النشطة: "+(products||[]).length+"، صفحات الهبوط المنشورة: "+(pages||[]).length+". يلزم استكمال اعتماد/نشر صفحة المنتج لهذا السوق.";
  }catch(error){status.textContent="تعذر تحميل منتجات السوق "+country+": "+error.message;document.getElementById("productGrid").innerHTML='<p class="notice">'+safe(error.message)+'</p>';}
 }
 function filterProducts(){const q=searchInput.value.trim().toLocaleLowerCase("ar");let count=0;document.querySelectorAll(".product").forEach(card=>{const show=!q||(card.dataset.name||"").toLocaleLowerCase("ar").includes(q);card.hidden=!show;if(show)count++;});notify("نتائج البحث: "+count);}
