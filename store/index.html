@@ -174,12 +174,13 @@ const cartItems=[];let toastTimer,supabase=null;
 const STORE_MARKET_KEY="al_gebaihy_store_market_v1";
 const VALID_MARKETS=new Set(["EG","SA","AE","OM","IQ"]);
 function readStoreMarket(){
- const queryMarket=new URLSearchParams(location.search).get("market")?.toUpperCase();
- if(VALID_MARKETS.has(queryMarket))return queryMarket;
- try{const saved=localStorage.getItem(STORE_MARKET_KEY);if(VALID_MARKETS.has(saved))return saved;}catch(_e){}
+ // Prefer the user's last explicit selection over a stale market query string.
+ try{const saved=localStorage.getItem(STORE_MARKET_KEY)?.toUpperCase();if(VALID_MARKETS.has(saved))return saved;}catch(_e){}
  const cookie=document.cookie.split(";").map(x=>x.trim()).find(x=>x.startsWith(STORE_MARKET_KEY+"="));
  const cookieMarket=cookie?decodeURIComponent(cookie.slice(STORE_MARKET_KEY.length+1)).toUpperCase():"";
- return VALID_MARKETS.has(cookieMarket)?cookieMarket:"EG";
+ if(VALID_MARKETS.has(cookieMarket))return cookieMarket;
+ const queryMarket=new URLSearchParams(location.search).get("market")?.toUpperCase();
+ return VALID_MARKETS.has(queryMarket)?queryMarket:"EG";
 }
 function persistStoreMarket(market){
  if(!VALID_MARKETS.has(market))return;
