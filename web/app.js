@@ -639,7 +639,9 @@
           if(pageError)throw pageError;
           const {error:priceError}=await db.from("product_country_prices").update({is_available:true}).eq("product_id",p.id).eq("country_id",market.id);
           if(priceError)throw priceError;
-          // Keep the master product unchanged; publication is scoped to this country's landing page only.\n          const url=new URL("landing.html",location.href);url.searchParams.set("slug",savedLandingSlug);
+          const {error:productError}=await db.from("products").update({status:"active",updated_at:new Date().toISOString()}).eq("id",p.id);
+          if(productError)throw productError;
+          // Storefront visibility still requires a published landing page and an approved price for the selected country.\n          const url=new URL("landing.html",location.href);url.searchParams.set("slug",savedLandingSlug);
           $("lpPreview").innerHTML='<a target="_blank" rel="noopener" href="'+escapeHTML(url.href)+'">فتح صفحة الهبوط المنشورة</a>';
           status.textContent="تم نشر صفحة الهبوط للسوق "+market.name_ar+".";
           notify("تم نشر صفحة الهبوط.");
