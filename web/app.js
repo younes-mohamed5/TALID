@@ -1415,7 +1415,9 @@
       </div>`;
 
     try {
-      if (page === "master_catalog") {\n        await renderMasterCatalog();\n      } else if (page === "orders") {
+      if (page === "master_catalog") {
+        await renderMasterCatalog();
+      } else if (page === "orders") {
         await renderOrders();
       } else if (page === "products") {
         await renderProducts();
