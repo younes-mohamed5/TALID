@@ -249,7 +249,7 @@ Deno.serve(async (req) => {
     try{result=raw?JSON.parse(raw):{};}catch{result={raw:raw.slice(0,1000)};}
     if(!upstream.ok) {
       await adminClient.from("products").update({attributes:{...attrs,easyorders_products_by_country:{...sentMap,[countryCode]:{status:"failed",http_status:upstream.status,failed_at:new Date().toISOString()}}}}).eq("id",productId);
-      const detail=(result&&typeof result==="object"?(result as Record<string,unknown>).message||(result as Record<string,unknown>).error:null):null;
+      const detail=result&&typeof result==="object"?((result as Record<string,unknown>).message||(result as Record<string,unknown>).error):null;
       const message=upstream.status===403
         ?"مفتاح EasyOrders لا يملك صلاحية products:create. فعّل الصلاحية ثم أعد المحاولة."
         :"رفض EasyOrders إنشاء المنتج (HTTP "+upstream.status+"). "+(asText(detail)||"راجع صلاحيات المفتاح وبيانات المنتج.");
