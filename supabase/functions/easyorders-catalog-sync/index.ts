@@ -163,6 +163,111 @@ Deno.serve(async (req) => {
     return json({ success: true, country_code: countryCode, currency_code: currencyCode, store_url: storeUrl }, 200, origin);
   }
 
+  // Send an approved product to the EasyOrders store selected for its market.
+  if (requestBody.mode === "send_product") {
+    const productId = asText(requestBody.product_id);
+    const countryCode = String(requestBody.country_code || "").trim().toUpperCase();
+    const currencyByCountry: Record<string,string> = { EG:"EGP", SA:"SAR", AE:"AED", OM:"OMR", IQ:"IQD" };
+    const currency = currencyByCountry[countryCode];
+    if (!productId || !currency) return json({ error:"اختر منتجاً وسوقاً صحيحاً." },400,origin);
+
+    const marketKey = Deno.env.get("EASYORDERS_API_KEY_" + countryCode);
+    const {data:connection,error:connectionError}=await adminClient.from("integration_connections")
+      .select("config_public").eq("provider","easyorders").order("created_at",{ascending:false}).limit(1).maybeSingle();
+    if(connectionError) return json({error:connectionError.message},500,origin);
+    const config=(connection?.config_public||{}) as Record<string,unknown>;
+    const configuredCountry=asText(config.country_code)?.toUpperCase();
+    const apiKey=marketKey || (configuredCountry===countryCode ? EASYORDERS_API_KEY : null);
+    if(!apiKey) return json({
+      error:"لا يوجد مفتاح EasyOrders مخصص لسوق "+countryCode+". أضف السر EASYORDERS_API_KEY_"+countryCode+" في Supabase. لا يمكن توجيه منتج إلى متجر دولة أخرى باستخدام مفتاح متجر مختلف.",
+      requested_country:countryCode,configured_country:configuredCountry,required_secret:"EASYORDERS_API_KEY_"+countryCode
+    },409,origin);
+
+    const {data:country,error:countryError}=await adminClient.from("countries").select("id,code,currency_code,name_ar").eq("code",countryCode).maybeSingle();
+    if(countryError||!country) return json({error:"السوق المختار غير مسجل في جدول الدول."},400,origin);
+    const {data:product,error:productError}=await adminClient.from("products")
+      .select("id,sku,supplier_sku,supplier_product_id,name_ar,name_en,description,images,supplier_name,attributes,slug")
+      .eq("id",productId).maybeSingle();
+    if(productError||!product) return json({error:"المنتج غير موجود في كتالوج الجبيهى."},404,origin);
+    const {data:price,error:priceError}=await adminClient.from("product_country_prices")
+      .select("sale_price,currency_code,is_available").eq("product_id",productId).eq("country_id",country.id).maybeSingle();
+    if(priceError||!price) return json({error:"لا يوجد سعر مسجل لهذا المنتج في السوق المختار."},409,origin);
+    const salePrice=Number(price.sale_price);
+    if(!Number.isFinite(salePrice)||salePrice<=0) return json({error:"أدخل سعر البيع اليدوي أولاً."},409,origin);
+    if(String(price.currency_code||"").toUpperCase()!==currency) return json({error:"عملة سعر البيع لا تطابق عملة السوق المختار."},409,origin);
+    if(price.is_available!==true) return json({error:"المنتج غير معتمد للبيع في هذا السوق. اعتمد صفحة الهبوط أولاً."},409,origin);
+    const {data:landing,error:landingError}=await adminClient.from("product_landing_pages")
+      .select("slug,status,sale_price,currency_code").eq("product_id",productId).eq("country_id",country.id).maybeSingle();
+    if(landingError||!landing||landing.status!=="published") return json({error:"لا يمكن الإرسال قبل اعتماد ونشر صفحة الهبوط لهذا السوق."},409,origin);
+    if(Number(landing.sale_price)!==salePrice||String(landing.currency_code||"").toUpperCase()!==currency) {
+      return json({error:"سعر صفحة الهبوط لا يطابق سعر البيع المعتمد. احفظ السعر نفسه ثم اعتمد الصفحة."},409,origin);
+    }
+
+    const attrs=(product.attributes&&typeof product.attributes==="object"&&!Array.isArray(product.attributes)
+      ? product.attributes : {}) as Record<string,unknown>;
+    const sentMap=(attrs.easyorders_products_by_country&&typeof attrs.easyorders_products_by_country==="object"
+      ? attrs.easyorders_products_by_country : {}) as Record<string,Record<string,unknown>>;
+    const previous=sentMap[countryCode];
+    if(previous && ["created","sending","pending_confirmation"].includes(String(previous.status))) {
+      return json({error:"تم إرسال هذا المنتج من قبل أو أن نتيجة الإرسال السابق تحتاج مراجعة. لن نكرر الإرسال حتى لا يتكرر المنتج داخل EasyOrders.",already_sent:true,easyorders_product_id:previous.id||null,send_status:previous.status},409,origin);
+    }
+
+    const baseSku=asText(product.supplier_sku)||asText(product.sku)||productId;
+    const remoteSku=(baseSku+"-"+countryCode).slice(0,100);
+    const baseSlug=(asText(product.slug)||baseSku).toLowerCase().normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,65)||"geba ihy-product";
+    const slug=(baseSlug+"-"+countryCode.toLowerCase()).slice(0,80);
+    const images=Array.isArray(product.images)?product.images.map(asText).filter((x):x is string=>!!x).filter(x=>/^https:\/\//i.test(x)).slice(0,12):[];
+    const name=asText(product.name_ar)||asText(product.name_en)||"منتج الجبيهى";
+    const description=asText(product.description)||name;
+    const payload={
+      name,price:salePrice,sale_price:salePrice,description,slug,sku:remoteSku,
+      ...(images.length?{thumb:images[0],images}:{}),
+      quantity:0,track_stock:true,disable_orders_for_no_stock:true,
+      buy_now_text:"اطلب الآن",is_reviews_enabled:false,is_free_shipping:false,
+      ...(asText((attrs as Record<string,unknown>).taager_code)?{taager_code:asText((attrs as Record<string,unknown>).taager_code)}:{}),
+      ...(asText(product.supplier_name)?{drop_shipping_provider:asText(product.supplier_name)}:{})
+    };
+
+    const pendingMap={...sentMap,[countryCode]:{status:"sending",sku:remoteSku,sale_price:salePrice,currency_code:currency,started_at:new Date().toISOString()}};
+    const {error:lockError}=await adminClient.from("products").update({attributes:{...attrs,easyorders_products_by_country:pendingMap}}).eq("id",productId);
+    if(lockError) return json({error:"تعذر تأمين سجل الإرسال لمنع التكرار: "+lockError.message},500,origin);
+
+    let upstream:Response;
+    try {
+      upstream=await fetch("https://api.easy-orders.net/api/v1/external-apps/products",{
+        method:"POST",headers:{"Api-Key":apiKey,"Accept":"application/json","Content-Type":"application/json"},
+        body:JSON.stringify(payload),signal:AbortSignal.timeout(25000)
+      });
+    } catch(error) {
+      const uncertainMap={...pendingMap,[countryCode]:{...pendingMap[countryCode],status:"pending_confirmation"}};
+      await adminClient.from("products").update({attributes:{...attrs,easyorders_products_by_country:uncertainMap}}).eq("id",productId);
+      return json({error:"انقطع الاتصال أثناء الإرسال؛ قد يكون EasyOrders استلم المنتج. تم إيقاف إعادة المحاولة لمنع التكرار. راجع كتالوج EasyOrders أولاً.",pending_confirmation:true},502,origin);
+    }
+    const raw=await upstream.text();
+    let result:unknown={};
+    try{result=raw?JSON.parse(raw):{};}catch{result={raw:raw.slice(0,1000)};}
+    if(!upstream.ok) {
+      await adminClient.from("products").update({attributes:{...attrs,easyorders_products_by_country:{...sentMap,[countryCode]:{status:"failed",http_status:upstream.status,failed_at:new Date().toISOString()}}}}).eq("id",productId);
+      const detail=(result&&typeof result==="object"?(result as Record<string,unknown>).message||(result as Record<string,unknown>).error:null):null;
+      const message=upstream.status===403
+        ?"مفتاح EasyOrders لا يملك صلاحية products:create. فعّل الصلاحية ثم أعد المحاولة."
+        :"رفض EasyOrders إنشاء المنتج (HTTP "+upstream.status+"). "+(asText(detail)||"راجع صلاحيات المفتاح وبيانات المنتج.");
+      return json({error:message,upstream_status:upstream.status},502,origin);
+    }
+    const root=(result&&typeof result==="object"?result as Record<string,unknown>:{});
+    const remote=(root.data&&typeof root.data==="object"?root.data as Record<string,unknown>:root);
+    const remoteId=asText(remote.id)||asText(remote._id)||asText(remote.product_id);
+    const finalMap={...sentMap,[countryCode]:{status:"created",id:remoteId,sku:remoteSku,sale_price:salePrice,currency_code:currency,created_at:new Date().toISOString()}};
+    const {error:saveError}=await adminClient.from("products").update({attributes:{...attrs,easyorders_products_by_country:finalMap}}).eq("id",productId);
+    await adminClient.from("sync_logs").insert({
+      provider:"easyorders",entity_type:"products",direction:"outbound",status:"success",records_count:1,
+      message:"Approved product sent from TALID product basket to the selected EasyOrders market.",
+      details:{product_id:productId,country_code:countryCode,currency_code:currency,sale_price:salePrice,easyorders_sku:remoteSku,easyorders_product_id:remoteId}
+    });
+    return json({success:true,product_id:productId,country_code:countryCode,currency_code:currency,sale_price:salePrice,easyorders_sku:remoteSku,easyorders_product_id:remoteId,local_record_saved:!saveError,stock_safety:"quantity=0; orders disabled until stock is configured"},200,origin);
+  }
+
   // Market-aware import: one master product can be assigned to multiple country catalogs.
   if (requestBody.mode === "import") {
     const limit = Math.max(1, Math.min(50, Math.floor(Number(requestBody.limit ?? 50) || 50)));
