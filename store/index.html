@@ -171,6 +171,9 @@ footer p,footer a{color:#ded3bf}
 "use strict";
 const toast=document.getElementById("toast"),searchInput=document.getElementById("searchInput"),cartPanel=document.getElementById("cartPanel"),countrySelect=document.getElementById("storeCountry");
 const cartItems=[];let toastTimer,supabase=null;
+const STORE_MARKET_KEY="al_gebaihy_store_market_v1";
+const VALID_MARKETS=new Set(["EG","SA","AE","OM","IQ"]);
+try{const savedMarket=localStorage.getItem(STORE_MARKET_KEY);if(savedMarket&&VALID_MARKETS.has(savedMarket))countrySelect.value=savedMarket;}catch(_e){}
 function notify(message){toast.textContent=message;toast.style.display="block";clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.style.display="none",3000);}
 function money(value,currency){return new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(value))+" "+currency;}
 function safe(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -221,7 +224,7 @@ async function loadStore(){
 }
 function filterProducts(){const q=searchInput.value.trim().toLocaleLowerCase("ar");let count=0;document.querySelectorAll(".product").forEach(card=>{const show=!q||(card.dataset.name||"").toLocaleLowerCase("ar").includes(q);card.hidden=!show;if(show)count++;});notify("نتائج البحث: "+count);}
 document.getElementById("searchBtn").addEventListener("click",filterProducts);searchInput.addEventListener("keydown",e=>{if(e.key==="Enter")filterProducts();});
-countrySelect.addEventListener("change",()=>{cartItems.splice(0);renderCart();loadStore();});
+countrySelect.addEventListener("change",()=>{try{if(VALID_MARKETS.has(countrySelect.value))localStorage.setItem(STORE_MARKET_KEY,countrySelect.value);}catch(_e){}cartItems.splice(0);renderCart();loadStore();});
 document.getElementById("cartBtn").addEventListener("click",()=>{renderCart();cartPanel.classList.add("open");});
 document.getElementById("closeCart").addEventListener("click",()=>cartPanel.classList.remove("open"));
 cartPanel.addEventListener("click",e=>{if(e.target===cartPanel)cartPanel.classList.remove("open");});
