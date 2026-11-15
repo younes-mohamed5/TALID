@@ -216,8 +216,7 @@ function renderCart(){
 }
 async function loadStore(){
  const status=document.getElementById("storeCatalogStatus");
- const queryMarket=(new URLSearchParams(window.location.search).get("market")||"").trim().toUpperCase();
- const country=VALID_MARKETS.has(queryMarket)?queryMarket:countrySelect.value;
+ const country=String(countrySelect.value||"EG").trim().toUpperCase();
  if(VALID_MARKETS.has(country))countrySelect.value=country;
  persistStoreMarket(country);
  status.textContent="جارٍ تحميل منتجات السوق "+country+"...";
@@ -245,7 +244,13 @@ async function loadStore(){
 }
 function filterProducts(){const q=searchInput.value.trim().toLocaleLowerCase("ar");let count=0;document.querySelectorAll(".product").forEach(card=>{const show=!q||(card.dataset.name||"").toLocaleLowerCase("ar").includes(q);card.hidden=!show;if(show)count++;});notify("نتائج البحث: "+count);}
 document.getElementById("searchBtn").addEventListener("click",filterProducts);searchInput.addEventListener("keydown",e=>{if(e.key==="Enter")filterProducts();});
-countrySelect.addEventListener("change",()=>{persistStoreMarket(countrySelect.value);cartItems.splice(0);renderCart();loadStore();});
+countrySelect.addEventListener("change",()=>{
+ const selected=String(countrySelect.value||"EG").trim().toUpperCase();
+ if(!VALID_MARKETS.has(selected)){countrySelect.value="EG";return;}
+ persistStoreMarket(selected);
+ cartItems.splice(0);renderCart();
+ loadStore();
+});
 document.getElementById("cartBtn").addEventListener("click",()=>{renderCart();cartPanel.classList.add("open");});
 document.getElementById("closeCart").addEventListener("click",()=>cartPanel.classList.remove("open"));
 cartPanel.addEventListener("click",e=>{if(e.target===cartPanel)cartPanel.classList.remove("open");});
