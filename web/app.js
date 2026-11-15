@@ -488,13 +488,14 @@
           <button id="manualSave" type="submit">حفظ المنتج في كتالوج هذه الدولة</button>
         </form>
       </div>
-      <div class="panel"><h3>منتجات السوق المختار</h3><input id="productSearch" type="search" placeholder="بحث بالاسم أو SKU" style="width:100%;padding:12px;margin-bottom:12px"><div id="productRows">جارٍ تحميل المنتجات...</div></div>
+      <div class="panel"><h3>سلة إرسال المنتجات إلى EasyOrders</h3><p class="muted">حدد المنتجات المعتمدة في السوق المختار، ثم أرسلها دفعة واحدة. لن يُرسل أي منتج قبل اعتماد صفحة الهبوط وسعر البيع.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><span id="sendSelectionCount" class="badge">0 منتجات محددة</span><button id="sendSelectedToEasyOrders" type="button" disabled>إرسال المحدد إلى EasyOrders</button></div><input id="productSearch" type="search" placeholder="بحث بالاسم أو SKU" style="width:100%;padding:12px;margin-bottom:12px"><div id="productRows">جارٍ تحميل المنتجات...</div><div id="sendBasketResult" aria-live="polite"></div></div>
       <div id="landingBuilder"></div>
     `;
     const countrySelect=$("catalogCountry");
     const money=(v,code)=>v==null?"غير محدد":new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v))+" "+code;
     let marketPrices=[];
     let marketProducts=[];
+    const selectedForSend=new Set();
     async function loadMarket(){
       const market=countries.find(x=>x.code===countrySelect.value);
       const {data:prices,error}=await db.from("product_country_prices").select("id,product_id,cost_price,sale_price,shipping_cost,currency_code,is_available").eq("country_id",market.id);
@@ -503,16 +504,27 @@
       const ids=marketPrices.map(x=>x.product_id);
       marketProducts=products.filter(p=>ids.includes(p.id));
       $("catalogMarketNotice").textContent="كتالوج "+market.name_ar+" مستقل — العملة "+market.currency_code+" — المنتجات المرتبطة بهذا السوق: "+marketProducts.length+".";
+      selectedForSend.clear();
       drawProducts();
+    }
+    function updateSendSelection(){
+      const count=$("sendSelectionCount"),button=$("sendSelectedToEasyOrders");
+      count.textContent=selectedForSend.size+" منتجات محددة";
+      button.disabled=selectedForSend.size===0;
     }
     function drawProducts(){
       const q=($("productSearch").value||"").toLowerCase().trim();
       const priceMap=new Map(marketPrices.map(x=>[x.product_id,x]));
       const rows=marketProducts.filter(p=>[p.name_ar,p.name_en,p.sku,p.supplier_sku].some(v=>String(v||"").toLowerCase().includes(q)));
-      $("productRows").innerHTML=rows.length?'<div style="overflow:auto"><table><thead><tr><th>المنتج</th><th>SKU</th><th>تكلفة المورد</th><th>سعر البيع</th><th>العملة</th><th>صفحة الهبوط</th></tr></thead><tbody>'+rows.map(p=>{
+      $("productRows").innerHTML=rows.length?'<div style="overflow:auto"><table><thead><tr><th>اختيار</th><th>المنتج</th><th>SKU</th><th>تكلفة المورد</th><th>سعر البيع</th><th>العملة</th><th>الحالة</th><th>صفحة الهبوط</th></tr></thead><tbody>'+rows.map(p=>{
         const pr=priceMap.get(p.id)||{};
-        return '<tr><td>'+escapeHTML(p.name_ar||p.name_en)+'</td><td>'+escapeHTML(p.sku||"-")+'</td><td>'+money(pr.cost_price,pr.currency_code||"")+'</td><td>'+money(pr.sale_price,pr.currency_code||"")+'</td><td>'+escapeHTML(pr.currency_code||"")+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" data-auto-landing="'+escapeHTML(p.id)+'">إنشاء صفحة تلقائيًا</button><button type="button" data-build-landing="'+escapeHTML(p.id)+'">تعديل يدوي</button></div></td></tr>';
+        return '<tr><td><input type="checkbox" data-select-send="'+escapeHTML(p.id)+'" '+(selectedForSend.has(p.id)?"checked":"")+(pr.is_available&&Number(pr.sale_price)>0?"":" disabled")+' aria-label="تحديد المنتج للإرسال"></td><td>'+escapeHTML(p.name_ar||p.name_en)+'</td><td>'+escapeHTML(p.sku||"-")+'</td><td>'+money(pr.cost_price,pr.currency_code||"")+'</td><td>'+money(pr.sale_price,pr.currency_code||"")+'</td><td>'+escapeHTML(pr.currency_code||"")+'</td><td>'+(pr.is_available&&Number(pr.sale_price)>0?"معتمد":"بانتظار الاعتماد") +'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" data-auto-landing="'+escapeHTML(p.id)+'">إنشاء صفحة تلقائيًا</button><button type="button" data-build-landing="'+escapeHTML(p.id)+'">تعديل يدوي</button></div></td></tr>';
       }).join("")+'</tbody></table></div>':'<p class="muted">لا توجد منتجات في كتالوج هذه الدولة بعد. استورد الكتالوج أو أضف منتجاً يدوياً.</p>';
+      $("productRows").querySelectorAll("[data-select-send]").forEach(ch=>ch.onchange=()=>{
+        if(ch.checked)selectedForSend.add(ch.dataset.selectSend);else selectedForSend.delete(ch.dataset.selectSend);
+        updateSendSelection();
+      });
+      updateSendSelection();
       $("productRows").querySelectorAll("[data-build-landing]").forEach(b=>b.onclick=()=>showLandingBuilder(b.dataset.buildLanding));
       $("productRows").querySelectorAll("[data-auto-landing]").forEach(b=>b.onclick=async()=>{
         const id=b.dataset.autoLanding,product=marketProducts.find(x=>x.id===id);
@@ -635,6 +647,28 @@
     }
     countrySelect.addEventListener("change",()=>loadMarket().catch(e=>showError($("productRows"),e.message)));
     $("productSearch").addEventListener("input",drawProducts);
+    $("sendSelectedToEasyOrders").onclick=async()=>{
+      const market=countries.find(x=>x.code===countrySelect.value),ids=[...selectedForSend];
+      if(!market||!ids.length)return;
+      if(!confirm("سيتم إرسال "+ids.length+" منتج معتمد إلى متجر EasyOrders المرتبط بسوق "+market.name_ar+". هل تريد المتابعة؟"))return;
+      const button=$("sendSelectedToEasyOrders"),result=$("sendBasketResult");
+      button.disabled=true;let sent=0,failed=0;
+      result.innerHTML="";
+      for(const id of ids){
+        const product=marketProducts.find(x=>x.id===id);
+        const row=document.createElement("div");row.className="notice";row.textContent="جارٍ إرسال: "+(product?.name_ar||product?.name_en||id);result.appendChild(row);
+        try{
+          const {data,error}=await db.functions.invoke("easyorders-catalog-sync",{body:{mode:"send_product",product_id:id,country_code:market.code}});
+          if(error){let message=error.message||"تعذر الاتصال بوظيفة الإرسال";if(error.context&&typeof error.context.json==="function"){try{const detail=await error.context.json();message=detail.error||message;}catch(_){}}throw new Error(message);}
+          if(!data?.success)throw new Error(data?.error||"لم يؤكد EasyOrders إنشاء المنتج.");
+          sent++;row.textContent="تم الإرسال: "+(product?.name_ar||product?.name_en)+" — "+money(data.sale_price,data.currency_code)+" — SKU: "+data.easyorders_sku;
+          selectedForSend.delete(id);
+        }catch(error){failed++;row.textContent="لم يتم الإرسال: "+(product?.name_ar||product?.name_en)+" — "+error.message;}
+      }
+      updateSendSelection();button.disabled=selectedForSend.size===0;
+      notify("نتيجة الإرسال: "+sent+" ناجح، "+failed+" يحتاج مراجعة.");
+      if(sent)await loadMarket();
+    };
     $("manualProductForm").addEventListener("submit",async event=>{
       event.preventDefault();const button=$("manualSave");button.disabled=true;
       try{
