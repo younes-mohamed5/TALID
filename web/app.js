@@ -14,6 +14,7 @@
   const pages = {
     overview: "لوحة التشغيل",
     products: "المنتجات والكتالوج",
+    master_catalog: "الكتالوج الرئيسي وتوزيع الدول",
     orders: "الطلبات والتسليم",
     markets: "الدول والأسعار",
     profit: "الأرباح والمستحقات",
@@ -449,6 +450,65 @@
     };
   }
 
+
+  // =========================================
+  // الكتالوج الرئيسي وتوزيع المنتجات على الدول
+  // =========================================
+  async function renderMasterCatalog() {
+    const view=$("view"); view.innerHTML='<div class="panel">جارٍ تحميل الكتالوج الرئيسي...</div>';
+    const [cr,pr,rr,lr]=await Promise.all([
+      db.from("countries").select("id,code,name_ar,currency_code,currency_symbol").in("code",["EG","SA","AE","OM","IQ"]).order("code"),
+      db.from("products").select("id,sku,supplier_sku,supplier_product_id,name_ar,name_en,description,supplier_name,images,cost_price,sale_price,currency_code,stock_qty,stock_status,status,attributes,updated_at").order("updated_at",{ascending:false}).limit(1000),
+      db.from("product_country_prices").select("id,product_id,country_id,cost_price,sale_price,shipping_cost,currency_code,is_available"),
+      db.from("product_landing_pages").select("id,product_id,country_id,slug,status,sale_price,currency_code")
+    ]);
+    for(const r of [cr,pr,rr,lr])if(r.error)throw r.error;
+    const countries=cr.data||[],products=pr.data||[],prices=rr.data||[],landings=lr.data||[];
+    const pm=new Map(prices.map(x=>[x.product_id+"|"+x.country_id,x])),lm=new Map(landings.map(x=>[x.product_id+"|"+x.country_id,x]));
+    const money=(v,c)=>v==null?"—":new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v))+" "+c;
+    const card=p=>{
+      const imgs=Array.isArray(p.images)?p.images.filter(x=>typeof x==="string"&&/^https:\/\//i.test(x)):[];
+      const attrs=p.attributes&&typeof p.attributes==="object"?p.attributes:{};
+      return '<article class="panel master-product" style="margin:14px 0;overflow:hidden"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">'+(imgs[0]?'<img src="'+escapeHTML(imgs[0])+'" alt="" loading="lazy" style="width:108px;height:108px;object-fit:contain;background:#f5f0e5;border-radius:12px">':'')+'<div style="flex:1;min-width:190px"><h3>'+escapeHTML(p.name_ar||p.name_en||"منتج بدون اسم")+'</h3><p class="muted">SKU: '+escapeHTML(p.sku||"—")+' | كود EasyOrders: '+escapeHTML(p.supplier_product_id||"—")+'</p><p class="muted">كود المورد: '+escapeHTML(p.supplier_sku||"—")+' | المخزون: '+escapeHTML(p.stock_qty??"غير محدد")+' | '+escapeHTML(p.stock_status||"")+'</p><p>'+escapeHTML(p.description||"لا يوجد وصف")+'</p><p class="muted">تكلفة المصدر: '+money(p.cost_price,p.currency_code||"")+' | الصور: '+imgs.length+' | المصدر: '+escapeHTML(p.supplier_name||"—")+'</p><details><summary>البيانات الإضافية</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'+escapeHTML(JSON.stringify(attrs,null,2))+'</pre>'+(imgs.length?imgs.map(x=>'<img src="'+escapeHTML(x)+'" alt="" style="width:54px;height:54px;object-fit:contain;margin:4px">').join(""):"")+'</details></div></div><div style="overflow:auto;margin-top:14px"><table><thead><tr><th>توزيع</th><th>الدولة والعملة</th><th>التكلفة</th><th>الشحن</th><th>سعر البيع</th><th>الحالة</th></tr></thead><tbody>'+countries.map(c=>{const key=p.id+"|"+c.id,price=pm.get(key)||{},lp=lm.get(key);return '<tr><td><input type="checkbox" data-market-check="'+c.code+'" '+(price.id?"checked":"")+'></td><td>'+escapeHTML(c.name_ar)+' ('+escapeHTML(c.currency_code)+')</td><td><input type="number" min="0" step=".01" data-cost="'+c.code+'" value="'+escapeHTML(price.cost_price??p.cost_price??"")+'" placeholder="التكلفة" style="width:100px"></td><td><input type="number" min="0" step=".01" data-shipping="'+c.code+'" value="'+escapeHTML(price.shipping_cost??"0")+'" style="width:85px"></td><td><input type="number" min=".01" step=".01" data-sale="'+c.code+'" value="'+escapeHTML(price.sale_price??"")+'" placeholder="سعر البيع" style="width:105px"></td><td>'+(lp?.status==="published"&&price.is_available?"منشور":"غير منشور")+'</td></tr>';}).join("")+'</tbody></table></div><button type="button" data-save-distribution="'+escapeHTML(p.id)+'" style="margin-top:12px">حفظ التوزيع والنشر في الأسواق المحددة</button><span class="muted" data-product-result="'+escapeHTML(p.id)+'" style="display:block;margin-top:8px"></span></article>';
+    };
+    view.innerHTML='<div class="head"><div><h1>الكتالوج الرئيسي وتوزيع الدول</h1><p class="muted">استورد المنتج مرة واحدة من EasyOrders، ثم وزّعه على دولة أو أكثر مع تكلفة وسعر بيع مستقلين بعملة كل دولة.</p></div><span class="badge">'+products.length+' منتج</span></div><div class="panel"><div style="display:flex;gap:10px;flex-wrap:wrap"><button id="masterSync" type="button">مزامنة الكتالوج من EasyOrders</button><input id="masterSearch" type="search" placeholder="بحث بالاسم أو SKU أو كود المورد" style="flex:1;min-width:180px;padding:12px"></div><p id="masterSyncResult" class="muted">المزامنة تستخدم دولة متجر EasyOrders المؤكدة في التكاملات، وتحافظ على أسعار الأسواق الحالية.</p></div><div id="masterProducts">'+(products.length?products.map(card).join(""):'<div class="panel">لا توجد منتجات مستوردة بعد.</div>')+'</div>';
+    const list=$("masterProducts");
+    $("masterSearch").oninput=()=>{const q=$("masterSearch").value.toLowerCase().trim();list.querySelectorAll(".master-product").forEach(x=>x.hidden=!x.textContent.toLowerCase().includes(q));};
+    list.querySelectorAll("[data-save-distribution]").forEach(btn=>btn.onclick=async()=>{
+      const id=btn.dataset.saveDistribution,el=btn.closest(".master-product"),out=el.querySelector("[data-product-result]"),p=products.find(x=>x.id===id);
+      const selected=countries.filter(c=>el.querySelector('[data-market-check="'+c.code+'"]').checked);
+      if(!selected.length){notify("حدد دولة واحدة على الأقل.");return;}
+      btn.disabled=true;out.textContent="جارٍ حفظ التوزيع...";
+      try{
+        for(const c of selected){
+          const cost=Number(el.querySelector('[data-cost="'+c.code+'"]').value),shipping=Number(el.querySelector('[data-shipping="'+c.code+'"]').value||0),sale=Number(el.querySelector('[data-sale="'+c.code+'"]').value);
+          if(!Number.isFinite(cost)||cost<0||!Number.isFinite(shipping)||shipping<0||!Number.isFinite(sale)||sale<=0)throw new Error("أدخل التكلفة والشحن وسعر البيع الصحيح لسوق "+c.name_ar+".");
+          const base=String(p.sku||p.id).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,65)||"product",slug=base+"-"+c.code.toLowerCase(),title=p.name_ar||p.name_en||"منتج الجبيهى",body=String(p.description||title);
+          const {error:pe}=await db.from("product_country_prices").upsert({product_id:id,country_id:c.id,cost_price:cost,shipping_cost:shipping,sale_price:sale,currency_code:c.currency_code,is_available:true},{onConflict:"product_id,country_id"});if(pe)throw pe;
+          const {error:le}=await db.from("product_landing_pages").upsert({product_id:id,country_id:c.id,slug,headline:title,subheadline:"متاح الآن في "+c.name_ar,body,benefits:[],images:Array.isArray(p.images)?p.images:[],sale_price:sale,currency_code:c.currency_code,seo_title:title,seo_description:body.slice(0,155),competitor_analysis:{source:"master_catalog_distribution"},status:"published",created_by:currentUser?.id||null,updated_at:new Date().toISOString(),published_at:new Date().toISOString()},{onConflict:"product_id,country_id"});if(le)throw le;
+        }
+        const {error:ue}=await db.from("products").update({status:"active",updated_at:new Date().toISOString()}).eq("id",id);if(ue)throw ue;
+        out.textContent="تم نشر المنتج في: "+selected.map(c=>c.name_ar).join("، ");notify("تم توزيع المنتج ونشره في الأسواق المحددة.");
+      }catch(e){out.textContent="تعذر إكمال التوزيع: "+e.message;notify(e.message);}finally{btn.disabled=false;}
+    });
+    $("masterSync").onclick=async()=>{
+      const btn=$("masterSync"),out=$("masterSyncResult");btn.disabled=true;
+      try{
+        const {data:conn,error:ce}=await db.from("integration_connections").select("config_public").eq("provider","easyorders").order("created_at",{ascending:false}).limit(1).maybeSingle();if(ce)throw ce;
+        const source=String(conn?.config_public?.country_code||"").toUpperCase();if(!source)throw new Error("حدد دولة متجر EasyOrders وأكدها من صفحة التكاملات أولًا.");
+        let read=0,added=0,linked=0;
+        for(let page=1;page<=100;page++){
+          out.textContent="جارٍ مزامنة كتالوج EasyOrders ("+source+") — الصفحة "+page;
+          const {data,error}=await db.functions.invoke("easyorders-catalog-sync",{body:{mode:"import",country_code:source,page,limit:50}});
+          if(error){let m=error.message||"فشلت المزامنة";if(error.context&&typeof error.context.json==="function"){try{m=(await error.context.json()).error||m;}catch(_){}}throw new Error(m);}
+          if(!data?.success)throw new Error(data?.error||"فشلت المزامنة.");
+          read+=Number(data.fetched||0);added+=Number(data.imported||0);linked+=Number(data.linked||0);if(Number(data.fetched||0)<50)break;
+        }
+        out.textContent="اكتملت المزامنة: قراءة "+read+"، منتجات رئيسية جديدة "+added+"، ربط بسوق المصدر "+linked+".";
+        notify("اكتملت مزامنة الكتالوج.");await renderMasterCatalog();
+      }catch(e){out.textContent=e.message;notify(e.message);}finally{const b=$("masterSync");if(b)b.disabled=false;}
+    };
+  }
 
   // =========================================
   // كتالوج المنتجات - عرض السجلات الفعلية فقط
@@ -1355,7 +1415,7 @@
       </div>`;
 
     try {
-      if (page === "orders") {
+      if (page === "master_catalog") {\n        await renderMasterCatalog();\n      } else if (page === "orders") {
         await renderOrders();
       } else if (page === "products") {
         await renderProducts();
