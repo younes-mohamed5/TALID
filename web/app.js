@@ -508,6 +508,8 @@
       <div id="landingBuilder"></div>
     `;
     const countrySelect=$("catalogCountry");
+    const initialCatalogMarket=new URLSearchParams(location.search).get("catalog_market");
+    if(initialCatalogMarket && countries.some(c=>c.code===initialCatalogMarket.toUpperCase())) countrySelect.value=initialCatalogMarket.toUpperCase();
     $("assignMarketForm").onsubmit=async(event)=>{
       event.preventDefault();
       const button=$("assignMarketSubmit"),result=$("assignMarketResult");
@@ -530,13 +532,16 @@
     let marketProducts=[];
     const selectedForSend=new Set();
     async function loadMarket(){
-      const market=countries.find(x=>x.code===countrySelect.value);
+      const market=countries.find(x=>x.code===String(countrySelect.value||"").toUpperCase());
+      if(!market) throw new Error("السوق المختار غير موجود أو غير مفعّل في جدول countries.");
+      $("productRows").textContent="جارٍ تحميل كتالوج "+market.name_ar+"...";
+      $("catalogMarketNotice").textContent="يتم جلب روابط المنتجات والأسعار المسجلة لهذا السوق.";
       const {data:prices,error}=await db.from("product_country_prices").select("id,product_id,cost_price,sale_price,shipping_cost,currency_code,is_available").eq("country_id",market.id);
       if(error)throw error;
       marketPrices=prices||[];
-      const ids=marketPrices.map(x=>x.product_id);
+      const ids=[...new Set(marketPrices.map(x=>x.product_id).filter(Boolean))];
       marketProducts=products.filter(p=>ids.includes(p.id));
-      $("catalogMarketNotice").textContent="كتالوج "+market.name_ar+" مستقل — العملة "+market.currency_code+" — المنتجات المرتبطة بهذا السوق: "+marketProducts.length+".";
+      $("catalogMarketNotice").textContent="كتالوج "+market.name_ar+" — العملة "+market.currency_code+" — المنتجات المرتبطة: "+marketProducts.length+" — الأسعار: "+marketPrices.length+".";
       selectedForSend.clear();
       drawProducts();
     }
@@ -756,7 +761,12 @@
       }catch(error){box.textContent="توقفت المزامنة بعد "+pages+" صفحات: "+error.message;notify(error.message);}
       finally{button.disabled=false;previewButton.disabled=false;}
     };
-    await loadMarket();
+    try { await loadMarket(); }
+    catch(error) {
+      showError($("productRows"),error.message||"تعذر تحميل كتالوج السوق.");
+      $("catalogMarketNotice").textContent="تعذر جلب منتجات السوق. راجع رسالة الخطأ أعلاه.";
+      notify("تعذر تحميل كتالوج السوق: "+(error.message||"خطأ غير معروف"));
+    }
   }
 
   // =========================================

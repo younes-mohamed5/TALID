@@ -122,7 +122,7 @@ footer p,footer a{color:#ded3bf}
 <nav class="nav">
 <a class="brand" href="#"><img class="mark" src="../web/brand-mark.svg?v=20261116" alt="شعار الجبيهى"><span><strong>AL-GEBAIHY</strong><small>الجبيهى</small></span></a>
 <div class="links"><a href="#">الرئيسية</a><a href="#categories">الأقسام</a><a href="#products">المنتجات</a><a href="#about">عن الجبيهى</a><a href="#contact">تواصل معنا</a></div>
-<select id="storeCountry" aria-label="اختر الدولة" style="border:1px solid var(--line);border-radius:24px;padding:10px;background:#fff;color:var(--ink)"><option value="EG">مصر — EGP</option><option value="SA">السعودية — SAR</option><option value="AE">الإمارات — AED</option><option value="OM">عُمان — OMR</option><option value="IQ">العراق — IQD</option></select>
+<select id="storeCountry" aria-label="اختر الدولة" style="border:1px solid var(--line);border-radius:24px;padding:10px;background:#fff;color:var(--ink)"><option value="EG">مصر — EGP</option><option value="SA">السعودية — SAR</option><option value="AE">الإمارات — AED</option><option value="OM">عُمان — OMR</option><option value="IQ">العراق — IQD</option></select><script>(function(){try{var m=(new URLSearchParams(location.search).get("market")||"").trim().toUpperCase();var el=document.getElementById("storeCountry");if(el&&["EG","SA","AE","OM","IQ"].includes(m)){el.value=m;el.dataset.marketFromUrl="true";}}catch(e){}})();</script>
 <label class="search"><input id="searchInput" placeholder="ابحث عن منتج..." aria-label="ابحث عن منتج"><button type="button" id="searchBtn" aria-label="بحث">⌕</button></label>
 <button class="cart" type="button" id="cartBtn">🛒 السلة (<span id="cartCount">0</span>)</button>
 </nav>
@@ -151,8 +151,8 @@ footer p,footer a{color:#ded3bf}
 <button class="category" data-category="all"><div class="cat-icon">✧</div><b>كل المنتجات</b></button>
 </div></section>
 <section class="section" id="products">
-<div class="section-head"><div><h2>منتجات الجبيهى</h2><p id="storeCatalogStatus">جارٍ تحميل المنتجات المعتمدة للسوق المحدد...</p></div><span class="text-link">كتالوج الجبيهى</span></div>
-<div class="products" id="productGrid"><p class="notice">جارٍ تحميل الكتالوج...</p></div>
+<div class="section-head"><div><h2>منتجات الجبيهى</h2><p id="storeCatalogStatus">اختر الدولة لعرض منتجاتها المعتمدة.</p></div><span class="text-link">كتالوج الجبيهى</span></div>
+<div class="products" id="productGrid"><p class="notice">يتم تجهيز كتالوج الدولة المختارة...</p></div>
 </section>
 <section class="promo" id="about"><div class="promo-inner"><div><h2>الجبيهى — الأصالة والقوة والتميز</h2><p>منتجات مختارة بعناية، بأسعار واضحة حسب الدولة التي تختارها.<br>الأصالة والقوة والتميز.</p></div><a class="btn primary" href="#contact">تواصل معنا</a></div></section>
 </main>
@@ -215,7 +215,13 @@ function renderCart(){
  const total=cartItems.reduce((n,x)=>n+x.price*x.quantity,0);summary.textContent="الإجمالي: "+money(total,cartItems[0].currency);
 }
 async function loadStore(){
- const status=document.getElementById("storeCatalogStatus"),country=countrySelect.value;status.textContent="جارٍ تحميل كتالوج الدولة المحددة...";
+ const status=document.getElementById("storeCatalogStatus");
+ const queryMarket=(new URLSearchParams(window.location.search).get("market")||"").trim().toUpperCase();
+ const country=VALID_MARKETS.has(queryMarket)?queryMarket:countrySelect.value;
+ if(VALID_MARKETS.has(country))countrySelect.value=country;
+ persistStoreMarket(country);
+ status.textContent="جارٍ تحميل منتجات السوق "+country+"...";
+ document.getElementById("productGrid").innerHTML='<p class="notice">يتم تحميل المنتجات المعتمدة لهذا السوق...</p>';
  try{
   if(!window.TALID_CONFIG||!window.supabase)throw new Error("إعداد الاتصال بقاعدة البيانات غير متاح.");
   if(!supabase)supabase=window.supabase.createClient(window.TALID_CONFIG.SUPABASE_URL,window.TALID_CONFIG.SUPABASE_ANON_KEY);
@@ -229,13 +235,13 @@ async function loadStore(){
   if(pe)throw pe;if(le)throw le;
   const available=(prices||[]).filter(x=>Number(x.sale_price)>0&&x.currency_code===market.currency_code);
   const ids=available.map(x=>x.product_id);
-  if(!ids.length){renderCards([],market.currency_code);status.textContent="لا توجد منتجات معتمدة في "+market.name_ar;return;}
+  if(!ids.length){renderCards([],market.currency_code);status.textContent="لا توجد أسعار بيع معتمدة في سوق "+market.name_ar+" حتى الآن.";return;}
   const {data:products,error:pr}=await supabase.from("products").select("id,sku,name_ar,name_en,description,images,status").in("id",ids).eq("status","active");
   if(pr)throw pr;
   const pageMap=new Map((pages||[]).map(x=>[x.product_id,x])),priceMap=new Map(available.map(x=>[x.product_id,x]));
   const rows=(products||[]).filter(p=>pageMap.has(p.id)).map(product=>({product,price:priceMap.get(product.id),landing:pageMap.get(product.id)}));
   renderCards(rows,market.currency_code);status.textContent=rows.length+" منتج معتمد في "+market.name_ar+" — الأسعار بعملة السوق.";
- }catch(error){status.textContent="تعذر تحميل المنتجات: "+error.message;document.getElementById("productGrid").innerHTML='<p class="notice">'+safe(error.message)+'</p>';}
+ }catch(error){status.textContent="تعذر تحميل منتجات السوق "+country+": "+error.message;document.getElementById("productGrid").innerHTML='<p class="notice">'+safe(error.message)+'</p>';}
 }
 function filterProducts(){const q=searchInput.value.trim().toLocaleLowerCase("ar");let count=0;document.querySelectorAll(".product").forEach(card=>{const show=!q||(card.dataset.name||"").toLocaleLowerCase("ar").includes(q);card.hidden=!show;if(show)count++;});notify("نتائج البحث: "+count);}
 document.getElementById("searchBtn").addEventListener("click",filterProducts);searchInput.addEventListener("keydown",e=>{if(e.key==="Enter")filterProducts();});
