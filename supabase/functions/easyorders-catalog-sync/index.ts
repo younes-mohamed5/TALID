@@ -445,6 +445,13 @@ Deno.serve(async (req) => {
       slug: asText(product.slug),
       original_price: product.price ?? null,
       currency: asText(product.currency_code) || asText(product.currency) || null,
+      categories: Array.isArray(product.categories) ? product.categories : [],
+      variations: Array.isArray(product.variations) ? product.variations : [],
+      variants: Array.isArray(product.variants) ? product.variants : [],
+      attributes: product.attributes && typeof product.attributes === "object" ? product.attributes : null,
+      weight: product.weight ?? null,
+      brand: asText(product.brand),
+      raw_fields: Object.keys(product),
     }));
 
     return json({
