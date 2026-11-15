@@ -226,7 +226,7 @@ document.getElementById("cartBtn").addEventListener("click",()=>{renderCart();ca
 document.getElementById("closeCart").addEventListener("click",()=>cartPanel.classList.remove("open"));
 cartPanel.addEventListener("click",e=>{if(e.target===cartPanel)cartPanel.classList.remove("open");});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")cartPanel.classList.remove("open");});
-document.querySelectorAll(".category").forEach(button=>button.addEventListener("click",()=>{const category=button.dataset.category;document.querySelectorAll(".product").forEach(card=>{card.hidden=category!=="all";});document.getElementById("products").scrollIntoView({behavior:"smooth"});}));
+document.querySelectorAll(".category").forEach(button=>button.addEventListener("click",()=>{document.querySelectorAll(".product").forEach(card=>{card.hidden=false;});document.getElementById("products").scrollIntoView({behavior:"smooth"});if(button.dataset.category!=="all")notify("يتم عرض المنتجات المعتمدة المتاحة في السوق المختار.");}));
 loadStore();
 </script>
 </body>
