@@ -63,6 +63,9 @@ jobs:
           psql "$SUPABASE_DB_URL" \
             -v ON_ERROR_STOP=1 \
             -f supabase/migrations/0005_talid_multi_market_landing_pages.sql
+          psql "$SUPABASE_DB_URL" \\
+            -v ON_ERROR_STOP=1 \\
+            -f supabase/migrations/0006_public_storefront_catalog_read.sql
 
       - name: Deploy Supabase Edge Functions
         env:
