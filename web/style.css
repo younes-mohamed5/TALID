@@ -581,3 +581,6 @@ input:focus-visible {
 .brand-lockup-sidebar small{display:block;margin-top:5px;color:var(--gold);font-size:15px;font-weight:700}
 aside .brand-tagline{margin:13px 0 0;padding-bottom:12px;border-bottom:1px solid #ffffff22;color:#d8dfeb;font-size:9px;letter-spacing:.35px;line-height:1.8}
 @media(max-width:380px){.brand-lockup img{width:54px;height:54px}.brand-lockup-login h1{font-size:19px}}
+
+/* رابط واجهة المتجر */
+.storefront-shortcut{display:block;margin:12px 0;padding:12px 14px;border:1px solid #b8860b;border-radius:10px;color:#f5d98a;text-align:center;text-decoration:none;font-weight:700}

@@ -1,12 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t d">
-<title id="t">شعار الجبيهى</title><desc id="d">صقر أسود فوق أقواس ذهبية</desc>
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f5d98a"/><stop offset=".52" stop-color="#c99a24"/><stop offset="1" stop-color="#8b5d08"/></linearGradient><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#303030"/><stop offset="1" stop-color="#080808"/></linearGradient></defs>
-<rect width="512" height="512" rx="64" fill="#171717"/>
-<path fill="url(#b)" stroke="#3a3a3a" stroke-width="5" d="M85 55c45 85 116 117 183 165 23-50 50-85 89-105 24-12 53-10 72 4-26-3-46 8-55 28-8 19-1 48 8 75-59 6-104 34-144 76C168 265 104 205 85 55Z"/>
-<path fill="#292929" d="M92 150c62 73 117 100 176 128-69-16-124-49-176-128Zm-2 110c51 48 103 72 159 92-65-5-118-33-159-92Z"/>
-<path fill="url(#g)" d="M258 171c26-24 58-35 91-31l-19 17 35 5-31 18-20 28-29-16 17-17-44-4Z"/>
-<path fill="url(#g)" d="M112 449V310c0-112 65-188 144-188s144 76 144 188v139h-43V310c0-85-44-143-101-143s-101 58-101 143v139Z"/>
-<path fill="url(#g)" d="M190 449V321c0-64 29-111 66-111s66 47 66 111v128h-40V321c0-39-11-68-26-68s-26 29-26 68v128Z"/>
-<path fill="url(#g)" d="M255 449V335c0-24 9-40 22-40s22 16 22 40v114h-31V339h-13v110Z"/>
-<path d="M92 468h328" stroke="url(#g)" stroke-width="8" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">شعار الجبيهى</title><desc id="desc">صقر أسود وقوس ذهبي بدون دوائر أو زخارف محيطة</desc>
+<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8df9a"/><stop offset=".48" stop-color="#d3a12c"/><stop offset="1" stop-color="#a36d12"/></linearGradient><linearGradient id="black" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#292929"/><stop offset="1" stop-color="#090909"/></linearGradient></defs>
+<rect width="512" height="512" fill="#171717"/>
+<path fill="url(#black)" stroke="#383838" stroke-width="3" d="M91 48c12 68 43 116 91 151 30 22 62 37 96 61-13-39-39-68-78-91-43-26-79-56-109-121 5 62 30 110 73 145-35-18-59-44-73-78 5 54 31 94 79 121-31-8-57-27-78-56 18 63 62 104 132 122 28-31 57-53 89-67-22-24-31-53-27-82 4-32 24-58 57-72-36-13-70-4-100 25-19 18-34 40-46 65C157 221 112 166 91 48Z"/>
+<path fill="#202020" d="M111 142c40 48 78 75 130 104-58-17-101-48-130-104Zm-1 76c37 37 72 59 119 79-52-8-91-33-119-79Z"/>
+<path fill="url(#gold)" d="M256 169c27-23 57-33 91-29l-17 16 34 4-29 18-20 26-31-16 17-17-45-2Z"/>
+<path fill="url(#gold)" d="M110 465V317c0-109 62-184 146-184s146 75 146 184v148h-48V317c0-82-40-136-98-136s-98 54-98 136v148Z"/>
+<path fill="url(#gold)" d="M190 465V326c0-65 28-111 66-111s66 46 66 111v139h-43V326c0-39-9-66-23-66s-23 27-23 66v139Z"/>
 </svg>
