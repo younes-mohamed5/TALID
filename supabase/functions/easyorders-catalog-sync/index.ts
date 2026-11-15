@@ -273,6 +273,42 @@ Deno.serve(async (req) => {
     return json({success:true,product_id:productId,country_code:countryCode,currency_code:currency,sale_price:salePrice,easyorders_sku:remoteSku,easyorders_product_id:remoteId,local_record_saved:!saveError,stock_safety:"quantity=0; orders disabled until stock is configured"},200,origin);
   }
 
+  // Assign an already imported master product to another market.
+  // Prices are entered explicitly in the target market currency; no FX is guessed.
+  if (requestBody.mode === "assign_market") {
+    const productId = asText(requestBody.product_id);
+    const countryCode = String(requestBody.country_code || "").trim().toUpperCase();
+    const currencyByCountry: Record<string,string> = { EG:"EGP", SA:"SAR", AE:"AED", OM:"OMR", IQ:"IQD" };
+    const currency = currencyByCountry[countryCode];
+    const costPrice = Number(requestBody.cost_price);
+    const salePrice = Number(requestBody.sale_price);
+    const shippingRaw = requestBody.shipping_cost;
+    const shippingCost = shippingRaw == null || shippingRaw === "" ? null : Number(shippingRaw);
+    if (!productId || !currency) return json({error:"اختر منتجاً وسوقاً صحيحاً."},400,origin);
+    if (!Number.isFinite(costPrice) || costPrice < 0 || !Number.isFinite(salePrice) || salePrice <= 0) {
+      return json({error:"أدخل تكلفة المورد وسعر البيع بعملة السوق المختار."},400,origin);
+    }
+    if (shippingCost !== null && (!Number.isFinite(shippingCost) || shippingCost < 0)) {
+      return json({error:"تكلفة الشحن غير صحيحة."},400,origin);
+    }
+    const {data:product,error:productError}=await adminClient.from("products").select("id").eq("id",productId).maybeSingle();
+    if(productError) return json({error:productError.message},500,origin);
+    if(!product) return json({error:"المنتج غير موجود في كتالوج الجبيهى."},404,origin);
+    const {data:country,error:countryError}=await adminClient.from("countries").select("id,code,currency_code").eq("code",countryCode).maybeSingle();
+    if(countryError) return json({error:countryError.message},500,origin);
+    if(!country || String(country.currency_code||"").toUpperCase()!==currency) return json({error:"الدولة أو عملتها غير معرفة بشكل صحيح في قاعدة البيانات."},409,origin);
+    const {data:existing,error:existingError}=await adminClient.from("product_country_prices").select("id").eq("product_id",productId).eq("country_id",country.id).maybeSingle();
+    if(existingError) return json({error:existingError.message},500,origin);
+    if(existing) return json({error:"هذا المنتج مرتبط بالفعل بهذا السوق. افتح بيانات السوق لتعديل الأسعار بدلاً من إنشاء ربط مكرر.",already_assigned:true},409,origin);
+    const {error:insertError}=await adminClient.from("product_country_prices").insert({
+      product_id:productId,country_id:country.id,cost_price:costPrice,sale_price:salePrice,
+      shipping_cost:shippingCost,currency_code:currency,is_available:false
+    });
+    if(insertError) return json({error:insertError.message},500,origin);
+    return json({success:true,product_id:productId,country_code:countryCode,currency_code:currency,
+      message:"تم ربط المنتج بالسوق وحفظ التكلفة وسعر البيع. المنتج غير منشور بعد؛ يلزم إنشاء صفحة الهبوط واعتمادها."},200,origin);
+  }
+
   // Market-aware import: one master product can be assigned to multiple country catalogs.
   if (requestBody.mode === "import") {
     const limit = Math.max(1, Math.min(50, Math.floor(Number(requestBody.limit ?? 50) || 50)));
