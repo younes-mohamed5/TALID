@@ -52,14 +52,14 @@ function extractProducts(payload: unknown): Record<string, unknown>[] {
 }
 
 
-async function readEasyOrdersProduct(productId: string): Promise<Record<string, unknown>> {
+async function readEasyOrdersProduct(productId: string, apiKey: string): Promise<Record<string, unknown>> {
   const url = new URL("https://api.easy-orders.net/api/v1/external-apps/products/" + encodeURIComponent(productId));
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     const response = await fetch(url.toString(), {
       method: "GET",
-      headers: { "Api-Key": EASYORDERS_API_KEY!, "Accept": "application/json" },
+      headers: { "Api-Key": apiKey, "Accept": "application/json" },
       signal: controller.signal,
     });
     const raw = await response.text();
@@ -126,10 +126,6 @@ Deno.serve(async (req) => {
     return json({ error: "Only an active TALID owner or admin can preview the EasyOrders catalog." }, 403, origin);
   }
 
-  if (!EASYORDERS_API_KEY) {
-    return json({ error: "EASYORDERS_API_KEY is missing from Supabase Edge Function secrets." }, 503, origin);
-  }
-
   let requestBody: Record<string, unknown> = {};
   try {
     const parsed = await req.json();
@@ -139,6 +135,15 @@ Deno.serve(async (req) => {
   }
 
   const marketCurrencies: Record<string, string> = { EG: "EGP", SA: "SAR", AE: "AED", OM: "OMR", IQ: "IQD" };
+  const { data: activeConnection, error: activeConnectionError } = await adminClient.from("integration_connections")
+    .select("config_public").eq("provider", "easyorders").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (activeConnectionError) return json({ error: activeConnectionError.message }, 500, origin);
+  const activeConfig = (activeConnection?.config_public || {}) as Record<string, unknown>;
+  const configuredCountry = asText(activeConfig.country_code)?.toUpperCase();
+  const requestedCountry = String(requestBody.country_code || configuredCountry || "").trim().toUpperCase();
+  const requestedApiKey = requestedCountry && marketCurrencies[requestedCountry]
+    ? (Deno.env.get("EASYORDERS_API_KEY_" + requestedCountry) || (configuredCountry === requestedCountry ? EASYORDERS_API_KEY : null))
+    : null;
 
   if (requestBody.mode === "get_store_config") {
     const { data, error } = await adminClient.from("integration_connections").select("display_name,config_public").eq("provider", "easyorders").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -288,7 +293,7 @@ Deno.serve(async (req) => {
     endpoint.searchParams.set("page",String(page)); endpoint.searchParams.set("limit",String(limit));
     const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),25000);
     try {
-      const upstream=await fetch(endpoint.toString(),{method:"GET",headers:{"Api-Key":EASYORDERS_API_KEY!,"Accept":"application/json"},signal:controller.signal});
+      const upstream=await fetch(endpoint.toString(),{method:"GET",headers:{"Api-Key":requestedApiKey!,"Accept":"application/json"},signal:controller.signal});
       const raw=await upstream.text();
       if(!upstream.ok) return json({success:false,error:"EasyOrders rejected the catalog import.",upstream_status:upstream.status},502,origin);
       let payload:unknown; try{payload=JSON.parse(raw);}catch{return json({success:false,error:"EasyOrders returned non-JSON catalog data."},502,origin);}
@@ -345,7 +350,7 @@ Deno.serve(async (req) => {
     const productId = asText(requestBody.product_id);
     if (!productId) return json({ error: "product_id is required for detail mode." }, 400, origin);
     try {
-      const product = await readEasyOrdersProduct(productId);
+      if (!requestedApiKey) return json({ error: "لا يوجد مفتاح API للسوق المحدد. أكد الدولة في التكاملات أو أضف EASYORDERS_API_KEY_" + requestedCountry + " في أسرار Supabase." }, 409, origin);\n      const product = await readEasyOrdersProduct(productId, requestedApiKey);
       const imageList = Array.isArray(product.images) ? product.images.map(asText).filter(Boolean) : [];
       const thumb = asText(product.thumb);
       return json({
@@ -380,7 +385,7 @@ Deno.serve(async (req) => {
     return json({ error: "Unsupported mode. Only preview and detail reads are enabled.", mode: "read_only" }, 409, origin);
   }
 
-  const requestedLimit = Number(requestBody.limit ?? 30);
+  if (!requestedCountry || !marketCurrencies[requestedCountry]) return json({ error: "اختر الدولة أولاً قبل معاينة كتالوج EasyOrders." }, 400, origin);\n  if (configuredCountry !== requestedCountry || !asText(activeConfig.country_confirmed_at)) return json({ error: "الدولة المختارة لا تطابق الدولة المؤكدة في إعدادات EasyOrders. غيّرها في EasyOrders ثم أكدها في تكاملات الجبيهى.", configured_country: configuredCountry, requested_country: requestedCountry }, 409, origin);\n  if (!requestedApiKey) return json({ error: "لا يوجد مفتاح API لسوق " + requestedCountry + ". أضف EASYORDERS_API_KEY_" + requestedCountry + " أو استخدم المفتاح الحالي بعد تأكيد الدولة المطابقة." }, 409, origin);\n\n  const requestedLimit = Number(requestBody.limit ?? 30);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(50, Math.floor(requestedLimit))) : 30;
   const page = 1;
   const endpoint = new URL("https://api.easy-orders.net/api/v1/external-apps/products");
@@ -394,7 +399,7 @@ Deno.serve(async (req) => {
     const upstream = await fetch(endpoint.toString(), {
       method: "GET",
       headers: {
-        "Api-Key": EASYORDERS_API_KEY,
+        "Api-Key": requestedApiKey,
         "Accept": "application/json",
       },
       signal: controller.signal,
