@@ -2,16 +2,16 @@
 :root {
   --navy: #171717;
   --navy-dark: #090909;
-  --gold: #B8860B;
-  --gold-light: #F5F5DC;
-  --bg: #F5F5DC;
+  --gold: #D4A63B;
+  --gold-light: #F8EBC5;
+  --bg: #F4F0E4;
   --white: #FFFFFF;
-  --text: #211B18;
-  --muted: #756D60;
-  --line: #E5DCC5;
+  --text: #211A18;
+  --muted: #756B60;
+  --line: #E4D8BE;
   --success: #16834A;
   --danger: #B42318;
-  --shadow: 0 8px 28px rgba(11, 31, 68, .07);
+  --shadow: 0 12px 34px rgba(20, 12, 8, .10);
 }
 
 * {
@@ -584,3 +584,40 @@ aside .brand-tagline{margin:13px 0 0;padding-bottom:12px;border-bottom:1px solid
 
 /* رابط واجهة المتجر */
 .storefront-shortcut{display:block;margin:12px 0;padding:12px 14px;border:1px solid #b8860b;border-radius:10px;color:#f5d98a;text-align:center;text-decoration:none;font-weight:700}
+
+/* AL-GEBAIHY premium visual system */
+:root{--navy:#171514;--navy-dark:#090808;--gold:#D4A63B;--gold-light:#F8EBC5;--bg:#F4F0E4;--white:#FFFEFA;--text:#211A18;--muted:#756B60;--line:#E4D8BE;--burgundy:#790024;--shadow:0 14px 38px rgba(20,12,8,.12)}
+body{background:linear-gradient(135deg,#f8f4e9 0%,#f0eadb 100%);color:var(--text)}
+.login{border:1px solid #d9bd77;border-radius:22px;box-shadow:0 22px 60px rgba(35,20,12,.15);background:linear-gradient(160deg,#fffefa,#f8f1df)}
+.login h1{color:#171514;text-shadow:0 1px 0 #fff}
+.login h1 small{color:#9a6b13}
+input{background:#fffdf8;border-color:#dfd0ad;border-radius:12px}
+input:focus{border-color:var(--gold);box-shadow:0 0 0 4px rgba(212,166,59,.18)}
+button{background:linear-gradient(135deg,#f5d77e,#c18b20);color:#1a1510;box-shadow:0 5px 14px rgba(135,91,16,.14)}
+button:hover{filter:brightness(1.04);box-shadow:0 8px 18px rgba(135,91,16,.2)}
+#loginBtn{background:linear-gradient(135deg,#8c1236,#5b001c);color:#fff;box-shadow:0 8px 20px rgba(91,0,28,.22)}
+aside{background:radial-gradient(ellipse at 12% 0%,rgba(121,0,36,.34),transparent 38%),linear-gradient(155deg,#211d1b 0%,#11100f 58%,#080707 100%);border-left:1px solid rgba(212,166,59,.3);box-shadow:-12px 0 36px rgba(0,0,0,.12)}
+aside h2{color:#edc45e;text-shadow:0 2px 10px rgba(212,166,59,.18)}
+nav button{border-radius:10px;color:#eee5d5;padding:13px 14px}
+nav button:hover{background:rgba(255,255,255,.08);color:#f7d987}
+nav button.active{border-right:4px solid #e1b64f;background:linear-gradient(90deg,rgba(212,166,59,.10),rgba(121,0,36,.28));color:#fff;box-shadow:inset 0 0 0 1px rgba(212,166,59,.12)}
+header{background:rgba(255,254,250,.94);backdrop-filter:blur(12px);border-bottom:1px solid #e3d4b5;box-shadow:0 5px 22px rgba(30,20,10,.05)}
+header b,.head h1,section h1,.panel h3,.num{color:#241b16}
+#menu{background:linear-gradient(135deg,#8c1236,#5b001c);color:#fff}
+.notice{background:linear-gradient(100deg,#fbf1d4,#fff9e9);border-color:#e7cb82;color:#765116;border-right:4px solid var(--gold)}
+.card,.panel{border:1px solid #e6dcc7;border-radius:17px;background:linear-gradient(160deg,#fffefa,#fffdf8);box-shadow:0 7px 22px rgba(34,20,10,.055)}
+.card{border-top:3px solid #d4a63b}
+.card:nth-child(4n+2){border-top-color:#790024}
+.card:nth-child(4n+3){border-top-color:#9a741f}
+.card:hover,.panel:hover{box-shadow:0 12px 28px rgba(34,20,10,.09)}
+th{background:#f4ead3;color:#6d4d20}
+tr:hover td{background:#fff8e9}
+.eo-product-card,.eo-details{border-color:#e5d8bc;box-shadow:0 6px 18px rgba(30,20,10,.05)}
+.eo-product-image,.eo-gallery img{background:#f5f0e5}
+.eo-detail-grid>div{background:#f8f2e5}
+.eo-close{background:#f3e8d3;color:#4d3216}
+#toast{background:linear-gradient(110deg,#211d1b,#790024);border-color:rgba(212,166,59,.4)}
+.storefront-shortcut{background:linear-gradient(110deg,rgba(212,166,59,.12),rgba(121,0,36,.18));border-color:#c99a35;color:#f5d987;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+.brand-lockup img{filter:drop-shadow(0 5px 10px rgba(0,0,0,.25))}
+.brand-lockup-sidebar img{border-radius:12px;box-shadow:0 5px 16px rgba(0,0,0,.35)}
+@media(max-width:760px){aside{background:radial-gradient(ellipse at 12% 0%,rgba(121,0,36,.34),transparent 38%),linear-gradient(155deg,#211d1b,#090808)}}

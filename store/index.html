@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#171717">\n<link rel="icon" type="image/svg+xml" href="../web/brand-mark.svg?v=20261115">
+<meta name="theme-color" content="#171717">\n<link rel="icon" type="image/svg+xml" href="../web/brand-mark.svg?v=20261116">
 <meta name="description" content="AL-GEBAIHY الجبيهى — تجربة تسوق بهوية عربية ورؤية إقليمية.">
 <title>AL-GEBAIHY | الجبيهى — المتجر</title>
 <style>
@@ -70,13 +70,56 @@ footer h3{color:var(--gold);margin-top:0;font-size:15px}footer p,footer a{font-s
 .notice{font-size:12px;color:#697386;line-height:1.8;margin-top:12px}
 @media(max-width:850px){.nav{flex-wrap:wrap;gap:12px}.links{order:3;width:100%;overflow:auto;flex:none;padding:8px 0}.search{max-width:none;flex:1}.hero-inner{grid-template-columns:1fr;text-align:center;padding-top:45px}.hero p{margin:auto}.actions{justify-content:center}.hero-art{min-height:220px}.orbit{width:auto;height:auto}.big-t{width:min(82vw,300px)}.trust{grid-template-columns:repeat(2,1fr)}.categories{grid-template-columns:repeat(3,1fr)}.products{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:480px){.brand{min-width:120px}.brand strong{font-size:20px}.mark{width:38px;height:38px}.cart{padding:9px 11px}.hero-inner{padding:40px 18px 55px}.hero p{font-size:14px}.trust{gap:8px}.trust-item{padding:13px 7px}.trust-item b{font-size:12px}.trust-item span{font-size:10px}.section{margin:42px auto}.section h2{font-size:21px}.categories{grid-template-columns:repeat(2,1fr)}.products{gap:10px}.product-img{height:135px}.product-body{padding:11px}.product h3{font-size:13px}.promo-inner{display:block;text-align:center;padding:27px 20px}.promo .btn{margin-top:18px}.footer-inner{grid-template-columns:1fr 1fr;gap:18px}}
+
+/* AL-GEBAIHY premium brand palette */
+:root{--navy:#171514;--navy2:#29211e;--gold:#D4A63B;--burgundy:#790024;--ivory:#F4F0E4;--white:#FFFEFA;--ink:#211A18;--muted:#756B60;--line:#E4D8BE}
+body{background:linear-gradient(145deg,#f8f4e9,#eee7d7);color:var(--ink)}
+.top{background:linear-gradient(100deg,#090808,#251c1b 58%,#790024);color:#f5e7c5;border-bottom:1px solid rgba(212,166,59,.55);letter-spacing:.2px}
+header{background:rgba(255,254,250,.97);box-shadow:0 8px 28px rgba(20,12,8,.08);border-bottom:1px solid #e4d8be}
+.brand{color:#171514}.mark{border:1px solid #e2bb58;border-radius:14px;background:linear-gradient(145deg,#24201d,#080707);box-shadow:0 5px 14px rgba(0,0,0,.22);object-fit:cover}
+.brand strong{color:#201915;text-shadow:0 1px 0 #fff}.brand small{color:#8b5d14}
+.links a{color:#34251d}.links a:hover{color:#9b163c}
+.search{background:#fffdf8;border-color:#e3d4b5;box-shadow:inset 0 1px 3px rgba(0,0,0,.025)}
+.cart{border-color:#c99a35;color:#332216;background:linear-gradient(135deg,#fffefa,#f7edda);box-shadow:0 4px 12px rgba(135,91,16,.08)}
+.hero{background:radial-gradient(ellipse at 82% 24%,rgba(121,0,36,.48),transparent 36%),radial-gradient(ellipse at 16% 10%,#38302a 0,#171514 48%,#080707 100%);border-bottom:5px solid #d4a63b}
+.eyebrow{color:#e8bd58;text-shadow:0 2px 12px rgba(212,166,59,.2)}
+h1 span{background:linear-gradient(110deg,#f7df9c,#d4a63b 55%,#a86d12);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:#eee7dc}
+.primary{background:linear-gradient(130deg,#f8df9a,#d4a63b 60%,#b17a19);color:#24190e;box-shadow:0 8px 22px rgba(173,119,21,.25)}
+.secondary{border:1px solid rgba(244,220,165,.72);color:#fff8e9;background:rgba(255,255,255,.035)}
+.hero-art{min-height:280px}
+.orbit{background:transparent!important;box-shadow:none!important;border:0!important}
+.orbit:before,.orbit:after{display:none!important;content:none!important}
+.big-t{width:min(100%,330px);filter:drop-shadow(0 16px 26px rgba(0,0,0,.52))}
+.hero-caption{color:#edca72;text-shadow:0 2px 8px #000;letter-spacing:1px}
+.trust-item,.category,.product{background:linear-gradient(160deg,#fffefa,#fbf7ed);border-color:#e3d6bd;box-shadow:0 8px 24px rgba(30,18,8,.07)}
+.trust-item{border-top:2px solid #d4a63b}
+.trust-item:nth-child(3n){border-top-color:#790024}
+.trust-item b,.category b,.section h2,.product h3,.price{color:#271b16}
+.category:hover,.product:hover{box-shadow:0 14px 30px rgba(30,18,8,.13);border-color:#d4a63b}
+.cat-icon{background:linear-gradient(145deg,#f8efd9,#eee0bd);color:#9a6812;border:1px solid #ead9b5}
+.product-img{background:linear-gradient(145deg,#f1eadc,#fffaf0);color:#9a6812}
+.tag{background:linear-gradient(110deg,#790024,#4b0017);color:#fff4dc}
+.add{background:linear-gradient(110deg,#211b18,#790024);color:#fff}
+.promo-inner{background:radial-gradient(ellipse at 90% 0%,rgba(212,166,59,.2),transparent 42%),linear-gradient(110deg,#171514,#790024);border:1px solid rgba(212,166,59,.38);box-shadow:0 18px 40px rgba(35,10,18,.18)}
+.promo h2,footer h3{color:#e7bd5c}
+footer{background:radial-gradient(ellipse at 90% 0%,rgba(121,0,36,.28),transparent 38%),#090808;border-top:4px solid #b8860b}
+footer p,footer a{color:#ded3bf}
+.text-link{color:#790024}
+.toast{background:linear-gradient(110deg,#211b18,#790024);border:1px solid rgba(212,166,59,.35)}
+.cart-box{background:#fffdf8;border:1px solid #e4d8be;box-shadow:0 -10px 40px rgba(0,0,0,.16)}
+.cart-head h2{color:#241914}
+.close{background:#f4ead6;color:#382617}
+.notice{color:#765116}
+@media(max-width:850px){.hero-art{min-height:240px}}
+
 </style>
 </head>
 <body>
 <div class="top">تجربة متجر AL-GEBAIHY التجريبية — الطلبات الفعلية غير مفعّلة بعد</div>
 <header>
 <nav class="nav">
-<a class="brand" href="#"><img class="mark" src="../web/brand-mark.svg?v=20261115" alt="شعار الجبيهى"><span><strong>AL-GEBAIHY</strong><small>الجبيهى</small></span></a>
+<a class="brand" href="#"><img class="mark" src="../web/brand-mark.svg?v=20261116" alt="شعار الجبيهى"><span><strong>AL-GEBAIHY</strong><small>الجبيهى</small></span></a>
 <div class="links"><a href="#">الرئيسية</a><a href="#categories">الأقسام</a><a href="#products">المنتجات</a><a href="#about">عن الجبيهى</a><a href="#contact">تواصل معنا</a></div>
 <label class="search"><input id="searchInput" placeholder="ابحث عن منتج..." aria-label="ابحث عن منتج"><button type="button" id="searchBtn" aria-label="بحث">⌕</button></label>
 <button class="cart" type="button" id="cartBtn">🛒 السلة (<span id="cartCount">0</span>)</button>
@@ -88,7 +131,7 @@ footer h3{color:var(--gold);margin-top:0;font-size:15px}footer p,footer a{font-s
 <h1>اختيارات مميزة<br><span>بلمسة الجبيهى</span></h1>
 <p>اكتشف تجربة تسوق تجمع بين الاختيار الذكي والجودة والقيمة. وجهتك لمنتجات مختارة بعناية، وتجربة بسيطة من أول زيارة حتى إتمام طلبك.</p>
 <div class="actions"><a class="btn primary" href="#products">اكتشف المنتجات</a><a class="btn secondary" href="#about">تعرف على الجبيهى</a></div></div>
-<div class="hero-art"><div class="orbit"><img class="big-t" src="../web/brand-lockup.svg?v=20261115" alt="شعار الجبيهى"></div><div class="hero-caption">الأصالة • القوة • التميز</div></div>
+<div class="hero-art"><div class="orbit"><img class="big-t" src="../web/brand-lockup.svg?v=20261116" alt="شعار الجبيهى"></div><div class="hero-caption">الأصالة • القوة • التميز</div></div>
 </div></section>
 <div class="trust">
 <div class="trust-item"><b>اختيارات منتقاة</b><span>منتجات نعرضها بعناية</span></div>

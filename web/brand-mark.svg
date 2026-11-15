@@ -1,10 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-<title id="title">شعار الجبيهى</title><desc id="desc">صقر أسود وقوس ذهبي بدون دوائر أو زخارف محيطة</desc>
-<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8df9a"/><stop offset=".48" stop-color="#d3a12c"/><stop offset="1" stop-color="#a36d12"/></linearGradient><linearGradient id="black" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#292929"/><stop offset="1" stop-color="#090909"/></linearGradient></defs>
-<rect width="512" height="512" fill="#171717"/>
-<path fill="url(#black)" stroke="#383838" stroke-width="3" d="M91 48c12 68 43 116 91 151 30 22 62 37 96 61-13-39-39-68-78-91-43-26-79-56-109-121 5 62 30 110 73 145-35-18-59-44-73-78 5 54 31 94 79 121-31-8-57-27-78-56 18 63 62 104 132 122 28-31 57-53 89-67-22-24-31-53-27-82 4-32 24-58 57-72-36-13-70-4-100 25-19 18-34 40-46 65C157 221 112 166 91 48Z"/>
-<path fill="#202020" d="M111 142c40 48 78 75 130 104-58-17-101-48-130-104Zm-1 76c37 37 72 59 119 79-52-8-91-33-119-79Z"/>
-<path fill="url(#gold)" d="M256 169c27-23 57-33 91-29l-17 16 34 4-29 18-20 26-31-16 17-17-45-2Z"/>
-<path fill="url(#gold)" d="M110 465V317c0-109 62-184 146-184s146 75 146 184v148h-48V317c0-82-40-136-98-136s-98 54-98 136v148Z"/>
-<path fill="url(#gold)" d="M190 465V326c0-65 28-111 66-111s66 46 66 111v139h-43V326c0-39-9-66-23-66s-23 27-23 66v139Z"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t d">
+<title id="t">الجبيهى</title><desc id="d">صقر أسود وقوس ذهبي بارز ثلاثي الأبعاد</desc>
+<defs>
+<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff0b7"/><stop offset=".22" stop-color="#f2cc62"/><stop offset=".5" stop-color="#c88e19"/><stop offset=".72" stop-color="#ffe28a"/><stop offset="1" stop-color="#87530a"/></linearGradient>
+<linearGradient id="black" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#34302d"/><stop offset=".5" stop-color="#151311"/><stop offset="1" stop-color="#050505"/></linearGradient>
+<filter id="emboss" x="-30%" y="-30%" width="160%" height="170%"><feGaussianBlur in="SourceAlpha" stdDeviation="5" result="blur"/><feOffset in="blur" dx="5" dy="9" result="shadow"/><feComponentTransfer in="shadow" result="shadow2"><feFuncA type="linear" slope=".75"/></feComponentTransfer><feMerge><feMergeNode in="shadow2"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="512" height="512" rx="48" fill="#171514"/>
+<g filter="url(#emboss)">
+<path fill="url(#black)" stroke="#514b44" stroke-width="4" d="M82 48c15 76 48 124 100 164 27 21 59 38 94 60-13-40-39-70-78-94-43-26-79-58-110-130 5 64 30 113 75 149-36-18-61-45-75-80 5 55 32 97 80 124-32-8-59-28-80-58 19 65 64 107 135 126 29-32 59-55 91-69-23-24-32-54-28-84 4-33 25-60 59-74-37-13-72-4-103 26-20 19-35 42-47 68C151 228 105 171 82 48Z"/>
+<path fill="#25211e" d="M103 145c42 49 81 78 135 108-60-18-105-50-135-108Zm-1 78c39 38 75 61 124 82-54-8-95-34-124-82Z"/>
+<path fill="url(#gold)" stroke="#ffdf8a" stroke-width="2" d="M250 174c28-24 60-35 95-30l-18 17 35 4-30 19-21 27-32-17 18-17-47-3Z"/>
+<path fill="url(#gold)" stroke="#87570e" stroke-width="6" d="M105 466V315c0-111 64-187 151-187s151 76 151 187v151h-51V315c0-83-42-139-100-139s-100 56-100 139v151Z"/>
+<path fill="url(#gold)" stroke="#87570e" stroke-width="5" d="M187 466V324c0-66 29-113 69-113s69 47 69 113v142h-45V324c0-40-10-68-24-68s-24 28-24 68v142Z"/>
+</g></svg>
