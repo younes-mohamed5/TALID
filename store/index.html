@@ -122,7 +122,7 @@ footer p,footer a{color:#ded3bf}
 <nav class="nav">
 <a class="brand" href="#"><img class="mark" src="../web/brand-mark.svg?v=20261116" alt="شعار الجبيهى"><span><strong>AL-GEBAIHY</strong><small>الجبيهى</small></span></a>
 <div class="links"><a href="#">الرئيسية</a><a href="#categories">الأقسام</a><a href="#products">المنتجات</a><a href="#about">عن الجبيهى</a><a href="#contact">تواصل معنا</a></div>
-<select id="storeCountry" aria-label="اختر الدولة" style="border:1px solid var(--line);border-radius:24px;padding:10px;background:#fff;color:var(--ink)"><option value="EG">مصر — EGP</option><option value="SA">السعودية — SAR</option><option value="AE">الإمارات — AED</option><option value="OM">عُمان — OMR</option><option value="IQ">العراق — IQD</option></select>
+<select id="storeCountry" aria-label="اختر الدولة" style="border:1px solid var(--line);border-radius:24px;padding:10px;background:#fff;color:var(--ink)"><option value="EG">مصر — EGP</option><option value="SA">السعودية — SAR</option><option value="AE">الإمارات — AED</option><option value="OM">عُمان — OMR</option><option value="IQ">العراق — IQD</option></select><script>(function(){try{var m=(new URLSearchParams(location.search).get("market")||"").trim().toUpperCase();var el=document.getElementById("storeCountry");if(el&&["EG","SA","AE","OM","IQ"].includes(m)){el.value=m;el.dataset.marketFromUrl="true";}}catch(e){}})();</script>
 <label class="search"><input id="searchInput" placeholder="ابحث عن منتج..." aria-label="ابحث عن منتج"><button type="button" id="searchBtn" aria-label="بحث">⌕</button></label>
 <button class="cart" type="button" id="cartBtn">🛒 السلة (<span id="cartCount">0</span>)</button>
 </nav>
@@ -151,8 +151,8 @@ footer p,footer a{color:#ded3bf}
 <button class="category" data-category="all"><div class="cat-icon">✧</div><b>كل المنتجات</b></button>
 </div></section>
 <section class="section" id="products">
-<div class="section-head"><div><h2>منتجات الجبيهى</h2><p id="storeCatalogStatus">جارٍ تحميل المنتجات المعتمدة للسوق المحدد...</p></div><span class="text-link">كتالوج الجبيهى</span></div>
-<div class="products" id="productGrid"><p class="notice">جارٍ تحميل الكتالوج...</p></div>
+<div class="section-head"><div><h2>منتجات الجبيهى</h2><p id="storeCatalogStatus">اختر الدولة لعرض منتجاتها المعتمدة.</p></div><span class="text-link">كتالوج الجبيهى</span></div>
+<div class="products" id="productGrid"><p class="notice">يتم تجهيز كتالوج الدولة المختارة...</p></div>
 </section>
 <section class="promo" id="about"><div class="promo-inner"><div><h2>الجبيهى — الأصالة والقوة والتميز</h2><p>منتجات مختارة بعناية، بأسعار واضحة حسب الدولة التي تختارها.<br>الأصالة والقوة والتميز.</p></div><a class="btn primary" href="#contact">تواصل معنا</a></div></section>
 </main>
