@@ -563,6 +563,8 @@
       $("productRows").querySelectorAll("[data-auto-landing]").forEach(b=>b.onclick=async()=>{
         const id=b.dataset.autoLanding,product=marketProducts.find(x=>x.id===id);
         if(!product)return;
+        const market=countries.find(x=>x.code===countrySelect.value);
+        if(!market){notify("اختر سوقاً صالحاً قبل إنشاء صفحة الهبوط.");return;}
         b.disabled=true;b.textContent="جارٍ الإنشاء...";
         try{
           showLandingBuilder(id);
