@@ -463,18 +463,33 @@
     const countries=countryResult.data||[], products=productResult.data||[];
     const view=$("view");
     view.innerHTML=`
-      <div class="head"><div><h1>${pages.products}</h1><p class="muted">خمسة كتالوجات مستقلة داخل حساب EasyOrders واحد. كل منتج يُربط بالسوق الذي استُورد منه فقط.</p></div><span class="badge">${countries.length} أسواق</span></div>
+      <div class="head"><div><h1>${pages.products}</h1><p class="muted">استورد المنتجات مرة واحدة من حساب EasyOrders، ثم وزّع المنتج نفسه على الأسواق وحدد تكلفة وسعر بيع مستقلين لكل عملة.</p></div><span class="badge">${countries.length} أسواق</span></div>
       <div class="panel">
         <h3>اختر كتالوج الدولة</h3>
         <select id="catalogCountry" style="width:100%;padding:12px;border:1px solid #d8deea;border-radius:10px">
           ${countries.map(x=>'<option value="'+escapeHTML(x.code)+'">'+escapeHTML(x.name_ar)+' — '+escapeHTML(x.currency_code)+'</option>').join("")}
         </select>
-        <p id="catalogMarketNotice" class="muted">الاستيراد متاح فقط عندما تطابق الدولة المختارة الدولة التي أكّدتها في إعدادات EasyOrders بعد تغييرها داخل المتجر.</p>
+        <p id="catalogMarketNotice" class="muted">اختر دولة حساب EasyOrders المؤكدة كمصدر للكتالوج. بعد الاستيراد يمكنك توزيع المنتجات على أي سوق آخر.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button id="easyOrdersPreview" type="button">معاينة كتالوج الدولة</button>
-          <button id="easyOrdersImport" type="button">استيراد منتجات هذه الدولة</button>
+          <button id="easyOrdersPreview" type="button">معاينة منتجات EasyOrders</button>
+          <button id="easyOrdersImport" type="button">استيراد إلى كتالوج الجبيهى</button>
         </div>
         <div id="easyOrdersPreviewResult" aria-live="polite" style="margin-top:12px"></div>
+      </div>
+      <div class="panel">
+        <h3>توزيع منتج مستورد على سوق آخر</h3>
+        <p class="muted">اختر المنتج والسوق المستهدف، ثم أدخل التكلفة وسعر البيع بعملة السوق. لا يتم تحويل العملة تلقائياً ولا نشر المنتج قبل اعتماد صفحة الهبوط.</p>
+        <form id="assignMarketForm" style="display:grid;gap:9px">
+          <label>المنتج المستورد</label>
+          <select id="assignProduct" required><option value="">اختر المنتج</option>${products.map(p=>'<option value="'+escapeHTML(p.id)+'">'+escapeHTML(p.name_ar||p.name_en||p.sku)+'</option>').join("")}</select>
+          <label>السوق المستهدف</label>
+          <select id="assignCountry" required>${countries.map(c=>'<option value="'+escapeHTML(c.code)+'">'+escapeHTML(c.name_ar)+' — '+escapeHTML(c.currency_code)+'</option>').join("")}</select>
+          <input id="assignCost" type="number" min="0" step="0.01" required placeholder="تكلفة المورد بعملة السوق">
+          <input id="assignShipping" type="number" min="0" step="0.01" placeholder="تكلفة الشحن بعملة السوق (اختياري)">
+          <input id="assignSale" type="number" min="0.01" step="0.01" required placeholder="سعر البيع بعملة السوق">
+          <button id="assignMarketSubmit" type="submit">ربط المنتج بالسوق وحفظ الأسعار</button>
+        </form>
+        <div id="assignMarketResult" aria-live="polite"></div>
       </div>
       <div class="panel">
         <h3>إضافة منتج يدوياً إلى السوق المحدد</h3>
@@ -493,6 +508,23 @@
       <div id="landingBuilder"></div>
     `;
     const countrySelect=$("catalogCountry");
+    $("assignMarketForm").onsubmit=async(event)=>{
+      event.preventDefault();
+      const button=$("assignMarketSubmit"),result=$("assignMarketResult");
+      button.disabled=true;result.textContent="جارٍ حفظ ربط السوق...";
+      try{
+        const {data,error}=await db.functions.invoke("easyorders-catalog-sync",{body:{
+          mode:"assign_market",product_id:$("assignProduct").value,country_code:$("assignCountry").value,
+          cost_price:$("assignCost").value,shipping_cost:$("assignShipping").value||null,sale_price:$("assignSale").value
+        }});
+        if(error){let message=error.message||"تعذر ربط المنتج بالسوق";if(error.context&&typeof error.context.json==="function"){try{const detail=await error.context.json();message=detail.error||message;}catch(_){}}throw new Error(message);}
+        if(!data?.success)throw new Error(data?.error||"فشل ربط المنتج بالسوق");
+        result.textContent=data.message||"تم ربط المنتج بالسوق.";
+        notify("تم ربط المنتج بالسوق بنجاح");await renderProducts();
+      }catch(error){result.textContent=error.message;notify(error.message);}
+      finally{button.disabled=false;}
+    };
+
     const money=(v,code)=>v==null?"غير محدد":new Intl.NumberFormat("ar-EG",{maximumFractionDigits:2}).format(Number(v))+" "+code;
     let marketPrices=[];
     let marketProducts=[];
@@ -706,7 +738,7 @@
     $("easyOrdersImport").onclick=async()=>{
       const button=$("easyOrdersImport"),previewButton=$("easyOrdersPreview"),box=$("easyOrdersPreviewResult"),market=countries.find(x=>x.code===countrySelect.value);
       if(!market)return;
-      if(!confirm("هل غيّرت دولة EasyOrders يدوياً إلى "+market.name_ar+" وحفظت نفس الدولة في التكاملات؟ سيتم ربط المنتجات بهذا السوق فقط."))return;
+      if(!confirm("سيتم استيراد كتالوج حساب EasyOrders المؤكد حالياً. بعد ذلك يمكنك توزيع كل منتج على أسواق أخرى وتحديد أسعارها. متابعة؟"))return;
       button.disabled=true;previewButton.disabled=true;let imported=0,linked=0,skipped=0,fetched=0,pages=0;
       try{
         for(let page=1;page<=100;page++){
