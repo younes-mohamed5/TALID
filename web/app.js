@@ -511,9 +511,50 @@
       const rows=marketProducts.filter(p=>[p.name_ar,p.name_en,p.sku,p.supplier_sku].some(v=>String(v||"").toLowerCase().includes(q)));
       $("productRows").innerHTML=rows.length?'<div style="overflow:auto"><table><thead><tr><th>المنتج</th><th>SKU</th><th>تكلفة المورد</th><th>سعر البيع</th><th>العملة</th><th>صفحة الهبوط</th></tr></thead><tbody>'+rows.map(p=>{
         const pr=priceMap.get(p.id)||{};
-        return '<tr><td>'+escapeHTML(p.name_ar||p.name_en)+'</td><td>'+escapeHTML(p.sku||"-")+'</td><td>'+money(pr.cost_price,pr.currency_code||"")+'</td><td>'+money(pr.sale_price,pr.currency_code||"")+'</td><td>'+escapeHTML(pr.currency_code||"")+'</td><td><button type="button" data-build-landing="'+escapeHTML(p.id)+'">إنشاء صفحة هبوط</button></td></tr>';
+        return '<tr><td>'+escapeHTML(p.name_ar||p.name_en)+'</td><td>'+escapeHTML(p.sku||"-")+'</td><td>'+money(pr.cost_price,pr.currency_code||"")+'</td><td>'+money(pr.sale_price,pr.currency_code||"")+'</td><td>'+escapeHTML(pr.currency_code||"")+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" data-auto-landing="'+escapeHTML(p.id)+'">إنشاء صفحة تلقائيًا</button><button type="button" data-build-landing="'+escapeHTML(p.id)+'">تعديل يدوي</button></div></td></tr>';
       }).join("")+'</tbody></table></div>':'<p class="muted">لا توجد منتجات في كتالوج هذه الدولة بعد. استورد الكتالوج أو أضف منتجاً يدوياً.</p>';
       $("productRows").querySelectorAll("[data-build-landing]").forEach(b=>b.onclick=()=>showLandingBuilder(b.dataset.buildLanding));
+      $("productRows").querySelectorAll("[data-auto-landing]").forEach(b=>b.onclick=async()=>{
+        const id=b.dataset.autoLanding,product=marketProducts.find(x=>x.id===id);
+        if(!product)return;
+        b.disabled=true;b.textContent="جارٍ الإنشاء...";
+        try{
+          showLandingBuilder(id);
+          const name=product.name_ar||product.name_en||"منتج مميز";
+          const description=String(product.description||"").trim();
+          const marketCopy={
+            EG:{intro:"اختيارك الذكي يبدأ من هنا. اكتشف تفاصيل المنتج واطلبه بسهولة داخل مصر.",cta:"اطلب الآن"},
+            SA:{intro:"اكتشف المنتج بتفاصيل واضحة وتجربة طلب سهلة داخل المملكة العربية السعودية.",cta:"اطلبه الآن"},
+            AE:{intro:"اكتشف المنتج واستمتع بتجربة تسوق واضحة وسهلة داخل الإمارات العربية المتحدة.",cta:"اطلب الآن"},
+            OM:{intro:"تعرّف على المنتج واطلبه بخطوات بسيطة داخل سلطنة عُمان.",cta:"اطلب الآن"},
+            IQ:{intro:"اكتشف تفاصيل المنتج وأكمل طلبك بسهولة داخل العراق.",cta:"اطلب الآن"}
+          }[market.code]||{intro:"اكتشف المنتج وأكمل طلبك بسهولة.",cta:"اطلب الآن"};
+          const generatedHeadline=name+" — اختيارك المميز";
+          const generatedSub=marketCopy.intro;
+          const generatedBody=[
+            "مرحبًا بك في الجبيهى",
+            "",
+            "نقدم لك "+name+" ضمن اختيارات الجبيهى لسوق "+market.name_ar+".",
+            description?("تفاصيل المنتج:\\n"+description):"تعرّف على المنتج من الصور والتفاصيل المتاحة قبل اتخاذ قرار الشراء.",
+            "",
+            "لماذا تطلب من الجبيهى؟",
+            "• تفاصيل واضحة للمنتج قبل الطلب.",
+            "• سعر بيع محدد بعملة السوق المختار.",
+            "• خطوات طلب سهلة ومباشرة.",
+            "",
+            "راجع الصور والتفاصيل والسعر المعروض، ثم أرسل طلبك."
+          ].join("\\n");
+          $("lpHeadline").value=generatedHeadline;
+          $("lpSubheadline").value=generatedSub;
+          $("lpBody").value=generatedBody;
+          $("lpImages").value=(Array.isArray(product.images)?product.images:[]).join("\\n");
+          $("lpSale").value="";
+          $("lpStatus").textContent="تم إعداد محتوى صفحة هبوط مخصص لسوق "+market.name_ar+". أدخل سعر البيع يدويًا ثم احفظ المسودة. لن تُنشر الصفحة تلقائيًا.";
+          $("landingEditor").scrollIntoView({behavior:"smooth",block:"start"});
+          notify("تم إنشاء مسودة الصفحة لسوق "+market.name_ar+". أدخل سعر البيع يدويًا واحفظها.");
+        }catch(error){notify("تعذر إنشاء الصفحة: "+error.message);}
+        finally{b.disabled=false;b.textContent="إنشاء صفحة تلقائيًا";}
+      });
     }
     function showLandingBuilder(productId){
       let savedLandingSlug=null;
@@ -532,7 +573,7 @@
             <input id="lpCost" type="number" min="0" step="0.01" value="${pr.cost_price??p.cost_price??""}" placeholder="تكلفة المورد">
             <input id="lpShipping" type="number" min="0" step="0.01" value="${pr.shipping_cost??""}" placeholder="الشحن">
             <input id="lpMargin" type="number" min="1" max="90" value="30" placeholder="هامش الربح %">
-            <input id="lpSale" type="number" min="0" step="0.01" value="${pr.sale_price??""}" placeholder="سعر البيع">
+            <input id="lpSale" type="number" min="0" step="0.01" value="" placeholder="سعر البيع اليدوي — مطلوب قبل النشر">
           </div>
           <h4>مقارنة المنافسين (أدخل اسم المنافس والسعر المرصود، سطر لكل منافس)</h4>
           <textarea id="lpCompetitors" rows="3" placeholder="اسم المنافس | السعر | رابط صفحة المنتج"></textarea>
@@ -559,17 +600,17 @@
         try{
           const headline=$("lpHeadline").value.trim(),body=$("lpBody").value.trim(),sale=Number(saleEl.value);
           const cost=Number(costEl.value),shipping=Number(shipEl.value||0);
-          if(!headline||!body||!Number.isFinite(sale)||sale<=0||!Number.isFinite(cost)||cost<0)throw new Error("أكمل العنوان والوصف والتكلفة وسعر البيع.");
-          const {error:priceError}=await db.from("product_country_prices").upsert({product_id:p.id,country_id:market.id,cost_price:cost,shipping_cost:shipping,sale_price:sale,currency_code:market.currency_code,is_available:false},{onConflict:"product_id,country_id"});
+          if(!headline||!body||!Number.isFinite(cost)||cost<0||(!Number.isFinite(sale)&&saleEl.value.trim()!=="")||(saleEl.value.trim()!==""&&sale<=0))throw new Error("أكمل العنوان والوصف والتكلفة. سعر البيع اختياري عند حفظ المسودة، لكنه إلزامي قبل النشر.");
+          const {error:priceError}=await db.from("product_country_prices").upsert({product_id:p.id,country_id:market.id,cost_price:cost,shipping_cost:shipping,sale_price:saleEl.value.trim()?sale:null,currency_code:market.currency_code,is_available:false},{onConflict:"product_id,country_id"});
           if(priceError)throw priceError;
           const competitorData=$("lpCompetitors").value.split("\n").map(line=>line.split("|")).filter(parts=>parts.length>=2).map(parts=>({name:parts[0].trim(),price:Number(parts[1]),url:(parts[2]||"").trim()})).filter(x=>x.name&&Number.isFinite(x.price)&&x.price>0);
           const slug=(p.sku||p.id).toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"")+"-"+market.code.toLowerCase();
-          const pageData={product_id:p.id,country_id:market.id,slug,headline,subheadline:$("lpSubheadline").value.trim(),body,benefits:[],images:$("lpImages").value.split("\n").map(x=>x.trim()).filter(Boolean),sale_price:sale,currency_code:market.currency_code,seo_title:headline,seo_description:body.slice(0,155),competitor_analysis:{source:"admin_entered",competitors:competitorData,average_price:competitorData.length?competitorData.reduce((s,x)=>s+x.price,0)/competitorData.length:null,shipping_cost:shipping,margin_percent:Number(marginEl.value||30)},status:"ready_for_review",created_by:currentUser?.id||null,updated_at:new Date().toISOString()};
+          const pageData={product_id:p.id,country_id:market.id,slug,headline,subheadline:$("lpSubheadline").value.trim(),body,benefits:[],images:$("lpImages").value.split("\n").map(x=>x.trim()).filter(Boolean),sale_price:saleEl.value.trim()?sale:null,currency_code:market.currency_code,seo_title:headline,seo_description:body.slice(0,155),competitor_analysis:{source:"admin_entered",competitors:competitorData,average_price:competitorData.length?competitorData.reduce((s,x)=>s+x.price,0)/competitorData.length:null,shipping_cost:shipping,margin_percent:Number(marginEl.value||30)},status:"ready_for_review",created_by:currentUser?.id||null,updated_at:new Date().toISOString()};
           const {error:pageError}=await db.from("product_landing_pages").upsert(pageData,{onConflict:"product_id,country_id"});
           if(pageError)throw pageError;
           savedLandingSlug=slug;
           $("lpPublish").disabled=false;
-          status.textContent="تم حفظ صفحة الهبوط للمراجعة. راجع الصور والسعر ثم اضغط نشر.";
+          status.textContent=saleEl.value.trim()?"تم حفظ الصفحة للمراجعة. راجعها ثم اعتمد النشر عند الاستعداد.":"تم حفظ الصفحة كمسودة. أدخل سعر البيع يدويًا قبل الاعتماد والنشر.";
           $("lpPreview").innerHTML='<a target="_blank" rel="noopener" href="landing.html?slug='+encodeURIComponent(slug)+'">فتح رابط المعاينة بعد النشر</a>.';
           notify("تم حفظ صفحة الهبوط والسعر لهذا السوق.");
         }catch(error){status.textContent=error.message;notify(error.message);}
@@ -577,6 +618,8 @@
       };
       $("lpPublish").onclick=async()=>{
         if(!savedLandingSlug){status.textContent="احفظ صفحة الهبوط أولاً.";return;}
+        if(!Number.isFinite(Number(saleEl.value))||Number(saleEl.value)<=0){status.textContent="أدخل سعر البيع يدويًا واحفظه قبل نشر الصفحة.";notify("سعر البيع اليدوي مطلوب قبل النشر.");return;}
+        if(!confirm("هل تعتمد نشر صفحة المنتج بسعر "+money(Number(saleEl.value),market.currency_code)+" في سوق "+market.name_ar+"؟"))return;
         const button=$("lpPublish");button.disabled=true;
         try{
           const {error:pageError}=await db.from("product_landing_pages").update({status:"published",published_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("slug",savedLandingSlug).eq("country_id",market.id);
