@@ -518,7 +518,8 @@
       const rows=marketProducts.filter(p=>[p.name_ar,p.name_en,p.sku,p.supplier_sku].some(v=>String(v||"").toLowerCase().includes(q)));
       $("productRows").innerHTML=rows.length?'<div style="overflow:auto"><table><thead><tr><th>اختيار</th><th>المنتج</th><th>SKU</th><th>تكلفة المورد</th><th>سعر البيع</th><th>العملة</th><th>الحالة</th><th>صفحة الهبوط</th></tr></thead><tbody>'+rows.map(p=>{
         const pr=priceMap.get(p.id)||{};
-        return '<tr><td><input type="checkbox" data-select-send="'+escapeHTML(p.id)+'" '+(selectedForSend.has(p.id)?"checked":"")+(pr.is_available&&Number(pr.sale_price)>0?"":" disabled")+' aria-label="تحديد المنتج للإرسال"></td><td>'+escapeHTML(p.name_ar||p.name_en)+'</td><td>'+escapeHTML(p.sku||"-")+'</td><td>'+money(pr.cost_price,pr.currency_code||"")+'</td><td>'+money(pr.sale_price,pr.currency_code||"")+'</td><td>'+escapeHTML(pr.currency_code||"")+'</td><td>'+(pr.is_available&&Number(pr.sale_price)>0?"معتمد":"بانتظار الاعتماد") +'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" data-auto-landing="'+escapeHTML(p.id)+'">إنشاء صفحة تلقائيًا</button><button type="button" data-build-landing="'+escapeHTML(p.id)+'">تعديل يدوي</button></div></td></tr>';
+        const cover=Array.isArray(p.images)?p.images.find(x=>typeof x==="string"&&/^https:\/\//i.test(x)):"";
+        return '<tr><td><input type="checkbox" data-select-send="'+escapeHTML(p.id)+'" '+(selectedForSend.has(p.id)?"checked":"")+(pr.is_available&&Number(pr.sale_price)>0?"":" disabled")+' aria-label="تحديد المنتج للإرسال"></td><td><div style="display:flex;align-items:center;gap:9px;min-width:180px">'+(cover?'<img src="'+escapeHTML(cover)+'" alt="" loading="lazy" style="width:64px;height:64px;object-fit:contain;border-radius:8px;background:#f5f0e5">':'<span style="width:64px;height:64px;display:grid;place-items:center;background:#f5f0e5;border-radius:8px">—</span>')+'<strong>'+escapeHTML(p.name_ar||p.name_en)+'</strong></div></td><td>'+escapeHTML(p.sku||"-")+'</td><td>'+money(pr.cost_price,pr.currency_code||"")+'</td><td>'+money(pr.sale_price,pr.currency_code||"")+'</td><td>'+escapeHTML(pr.currency_code||"")+'</td><td>'+(pr.is_available&&Number(pr.sale_price)>0?"معتمد":"بانتظار الاعتماد") +'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" data-auto-landing="'+escapeHTML(p.id)+'">إنشاء صفحة الهبوط</button><button type="button" data-build-landing="'+escapeHTML(p.id)+'">عرض وتعديل</button></div></td></tr>';
       }).join("")+'</tbody></table></div>':'<p class="muted">لا توجد منتجات في كتالوج هذه الدولة بعد. استورد الكتالوج أو أضف منتجاً يدوياً.</p>';
       $("productRows").querySelectorAll("[data-select-send]").forEach(ch=>ch.onchange=()=>{
         if(ch.checked)selectedForSend.add(ch.dataset.selectSend);else selectedForSend.delete(ch.dataset.selectSend);
@@ -638,7 +639,9 @@
           if(pageError)throw pageError;
           const {error:priceError}=await db.from("product_country_prices").update({is_available:true}).eq("product_id",p.id).eq("country_id",market.id);
           if(priceError)throw priceError;
-          // Keep the master product unchanged; publication is scoped to this country's landing page only.\n          const url=new URL("landing.html",location.href);url.searchParams.set("slug",savedLandingSlug);
+          const {error:productError}=await db.from("products").update({status:"active",updated_at:new Date().toISOString()}).eq("id",p.id);
+          if(productError)throw productError;
+          // Storefront visibility still requires a published landing page and an approved price for the selected country.\n          const url=new URL("landing.html",location.href);url.searchParams.set("slug",savedLandingSlug);
           $("lpPreview").innerHTML='<a target="_blank" rel="noopener" href="'+escapeHTML(url.href)+'">فتح صفحة الهبوط المنشورة</a>';
           status.textContent="تم نشر صفحة الهبوط للسوق "+market.name_ar+".";
           notify("تم نشر صفحة الهبوط.");
@@ -689,9 +692,14 @@
     $("easyOrdersPreview").onclick=async()=>{
       const button=$("easyOrdersPreview"),box=$("easyOrdersPreviewResult"),market=countries.find(x=>x.code===countrySelect.value);button.disabled=true;box.textContent="جارٍ قراءة كتالوج EasyOrders...";
       try{
-        const {data,error}=await db.functions.invoke("easyorders-catalog-sync",{body:{mode:"preview",limit:50}});
-        if(error)throw error;if(!data?.success)throw new Error(data?.error||"فشلت المعاينة.");
-        const items=data.preview||[];box.innerHTML='<div class="notice">تم العثور على '+items.length+' منتج. تذكير: تأكد من تغيير دولة EasyOrders إلى '+escapeHTML(market.name_ar)+' قبل الاستيراد.</div>'+items.map(x=>'<div>'+escapeHTML(x.name)+' — '+escapeHTML(x.sku||"بدون SKU")+' — تكلفة المورد: '+escapeHTML(money(x.price,x.currency||market.currency_code))+'</div>').join("");
+        const {data,error}=await db.functions.invoke("easyorders-catalog-sync",{body:{mode:"preview",country_code:market.code,limit:50}});
+        if(error){let message=error.message||"تعذر الاتصال بـ EasyOrders";if(error.context&&typeof error.context.json==="function"){try{const detail=await error.context.json();message=detail.error||message;}catch(_){}}throw new Error(message);}
+        if(!data?.success)throw new Error(data?.error||"فشلت المعاينة.");
+        const items=data.preview||[];
+        box.innerHTML='<div class="notice">تم العثور على '+items.length+' منتج في كتالوج '+escapeHTML(market.name_ar)+'. هذه معاينة كاملة قبل الاستيراد؛ لا يتم نشر المنتجات تلقائيًا.</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px">'+items.map(x=>{
+          const pics=Array.isArray(x.images)?x.images.filter(v=>typeof v==="string"&&/^https:\/\//i.test(v)):[],cover=x.image||pics[0]||"";
+          return '<article class="panel" style="padding:12px;min-width:0"><div style="height:155px;background:#f5f0e5;border-radius:10px;display:grid;place-items:center;overflow:hidden">'+(cover?'<img src="'+escapeHTML(cover)+'" alt="'+escapeHTML(x.name)+'" style="width:100%;height:100%;object-fit:contain">':'<span>لا توجد صورة</span>')+'</div><h4 style="margin:10px 0 6px">'+escapeHTML(x.name)+'</h4><div class="muted">SKU: '+escapeHTML(x.sku||"غير متاح")+'</div><div class="muted">كود المورد: '+escapeHTML(x.taager_code||"غير متاح")+'</div><strong>تكلفة المورد: '+escapeHTML(money(x.price,x.currency||market.currency_code))+'</strong><div class="muted">المخزون: '+escapeHTML(x.quantity??"غير محدد")+' — الصور: '+pics.length+'</div><details style="margin-top:8px"><summary>كل بيانات المنتج</summary><p style="white-space:pre-wrap">'+escapeHTML(x.description||"لا يوجد وصف من المصدر")+'</p><p>السعر الأصلي: '+escapeHTML(money(x.original_price,x.currency||market.currency_code))+'</p><p>الرابط المختصر: '+escapeHTML(x.slug||"غير متاح")+'</p>'+'<p>العلامة التجارية: '+escapeHTML(x.brand||"غير محددة")+'</p><p>الوزن: '+escapeHTML(x.weight??"غير محدد")+'</p><p>الخصائص والمتغيرات: '+escapeHTML(JSON.stringify({categories:x.categories||[],variations:x.variations||[],variants:x.variants||[],attributes:x.attributes||{}}))+'</p>'+(pics.length?pics.map(src=>'<img src="'+escapeHTML(src)+'" alt="" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin:3px;border-radius:6px">').join(""):"")+'</details></article>';
+        }).join("")+'</div>';
       }catch(error){box.textContent=error.message;}finally{button.disabled=false;}
     };
     $("easyOrdersImport").onclick=async()=>{
