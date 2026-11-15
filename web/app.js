@@ -617,7 +617,9 @@
         finally{button.disabled=false;}
       };
       $("lpPublish").onclick=async()=>{
-        if(!savedLandingSlug){status.textContent="احفظ صفحة الهبوط أولاً.";return;}\n        if(!Number.isFinite(Number(saleEl.value))||Number(saleEl.value)<=0){status.textContent="أدخل سعر البيع يدويًا واحفظه قبل نشر الصفحة.";notify("سعر البيع اليدوي مطلوب قبل النشر.");return;}\n        if(!confirm("هل تعتمد نشر صفحة المنتج بسعر "+money(Number(saleEl.value),market.currency_code)+" في سوق "+market.name_ar+"؟"))return;
+        if(!savedLandingSlug){status.textContent="احفظ صفحة الهبوط أولاً.";return;}
+        if(!Number.isFinite(Number(saleEl.value))||Number(saleEl.value)<=0){status.textContent="أدخل سعر البيع يدويًا واحفظه قبل نشر الصفحة.";notify("سعر البيع اليدوي مطلوب قبل النشر.");return;}
+        if(!confirm("هل تعتمد نشر صفحة المنتج بسعر "+money(Number(saleEl.value),market.currency_code)+" في سوق "+market.name_ar+"؟"))return;
         const button=$("lpPublish");button.disabled=true;
         try{
           const {error:pageError}=await db.from("product_landing_pages").update({status:"published",published_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("slug",savedLandingSlug).eq("country_id",market.id);
