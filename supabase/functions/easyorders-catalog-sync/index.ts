@@ -342,11 +342,17 @@ Deno.serve(async (req) => {
         const sourceSku=asText(source.sku)||asText(source.taager_code);
         const sku=sourceSku||(sourceId?"EO-"+sourceId:null);
         if(!sourceId||!name||!sku){skipped++;continue;}
-        const sourceCurrency=(asText(source.currency_code)||asText(source.currency)||"").toUpperCase();
-        if(sourceCurrency && sourceCurrency!==targetCurrency){currencyMismatch++;continue;}
+        // Keep every valid product in the master catalog. Never discard a product
+        // merely because EasyOrders reports a different currency: the source cost
+        // remains tagged with its original currency and is not copied into a
+        // market price row unless the currencies match.
+        const sourceCurrency=(asText(source.currency_code)||asText(source.currency)||targetCurrency).toUpperCase();
         const rawCost=source.sale_price??source.price;
-        const cost=rawCost==null||rawCost===""?null:Number(rawCost);
-        if(cost==null||!Number.isFinite(cost)||cost<0){missingPrice++;continue;}
+        const parsedCost=rawCost==null||rawCost===""?null:Number(rawCost);
+        const cost=parsedCost!=null&&Number.isFinite(parsedCost)&&parsedCost>=0?parsedCost:null;
+        const sourceCostMatchesMarket=sourceCurrency===targetCurrency;
+        if(!sourceCostMatchesMarket)currencyMismatch++;
+        if(cost==null)missingPrice++;
         let product:any=null;
         const byId=await adminClient.from("products").select("id,sku,supplier_product_id,supplier_sku").eq("supplier_product_id",sourceId).limit(1).maybeSingle();
         if(byId.error) throw new Error(byId.error.message);
@@ -365,19 +371,19 @@ Deno.serve(async (req) => {
           const slugBase=(asText(source.slug)||name).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,55)||"easyorders-product";
           const images=[...new Set([...(asText(source.thumb)?[asText(source.thumb)!]:[]),...(Array.isArray(source.images)?source.images.map(asText).filter((v):v is string=>!!v):[])])];
           const qtyRaw=source.quantity; const qty=qtyRaw==null||qtyRaw===""?null:Number(qtyRaw);
-          const inserted=await adminClient.from("products").insert({sku,name_ar:name,slug:slugBase+"-"+sourceId.replace(/[^a-zA-Z0-9-]/g,"").slice(0,20),description:asText(source.description),supplier_name:"EasyOrders",supplier_product_id:sourceId,supplier_sku:sourceSku,cost_price:cost,sale_price:null,currency_code:targetCurrency,stock_qty:qty!=null&&Number.isFinite(qty)?Math.max(0,Math.floor(qty)):null,stock_status:qty==null?"unknown":qty>0?"in_stock":"out_of_stock",images,status:"draft",attributes:{source:"easyorders",taager_code:asText(source.taager_code)}}).select("id,sku").single();
+          const inserted=await adminClient.from("products").insert({sku,name_ar:name,slug:slugBase+"-"+sourceId.replace(/[^a-zA-Z0-9-]/g,"").slice(0,20),description:asText(source.description),supplier_name:"EasyOrders",supplier_product_id:sourceId,supplier_sku:sourceSku,cost_price:cost,sale_price:null,currency_code:sourceCurrency,stock_qty:qty!=null&&Number.isFinite(qty)?Math.max(0,Math.floor(qty)):null,stock_status:qty==null?"unknown":qty>0?"in_stock":"out_of_stock",images,status:"draft",attributes:{source:"easyorders",taager_code:asText(source.taager_code)}}).select("id,sku").single();
           if(inserted.error){if(inserted.error.code==="23505"){skipped++;continue;}throw new Error(inserted.error.message);}
           product=inserted.data; imported++;
         }
         const existingPrice=await adminClient.from("product_country_prices").select("id").eq("product_id",product.id).eq("country_id",country.id).maybeSingle();
         if(existingPrice.error) throw new Error(existingPrice.error.message);
         if(existingPrice.data){skipped++;continue;}
-        const priceInsert=await adminClient.from("product_country_prices").insert({product_id:product.id,country_id:country.id,cost_price:cost,sale_price:null,shipping_cost:null,currency_code:targetCurrency,is_available:false});
+        const priceInsert=await adminClient.from("product_country_prices").insert({product_id:product.id,country_id:country.id,cost_price:sourceCostMatchesMarket?cost:null,sale_price:null,shipping_cost:null,currency_code:targetCurrency,is_available:false});
         if(priceInsert.error){if(priceInsert.error.code==="23505"){skipped++;continue;}throw new Error(priceInsert.error.message);}
         linked++;
       }
-      await adminClient.from("sync_logs").insert({provider:"easyorders",entity_type:"products",direction:"inbound",status:"success",records_count:linked,message:"Market-scoped import; existing product master reused; per-market catalog assignment created.",details:{page,limit,country_code:requestedCountry,currency_code:targetCurrency,fetched:sourceProducts.length,new_master_products:imported,linked_to_market:linked,skipped,currency_mismatch:currencyMismatch,missing_price:missingPrice}});
-      return json({success:true,mode:"import",page,country_code:requestedCountry,currency_code:targetCurrency,fetched:sourceProducts.length,imported,linked,skipped,currency_mismatch:currencyMismatch,missing_price:missingPrice,database_changed:linked>0,note:"Products are assigned only to the selected country catalog. Existing master products are reused; existing country assignments are skipped. Supplier price is cost, sale price remains unset."},200,origin);
+      await adminClient.from("sync_logs").insert({provider:"easyorders",entity_type:"products",direction:"inbound",status:"success",records_count:linked,message:"Master catalog import; products retained across source currencies; source cost is assigned only when its currency matches the source market.",details:{page,limit,country_code:requestedCountry,currency_code:targetCurrency,fetched:sourceProducts.length,new_master_products:imported,linked_to_market:linked,skipped,currency_mismatch:currencyMismatch,missing_price:missingPrice}});
+      return json({success:true,mode:"import",page,country_code:requestedCountry,currency_code:targetCurrency,fetched:sourceProducts.length,imported,linked,skipped,currency_mismatch:currencyMismatch,missing_price:missingPrice,database_changed:linked>0,note:"All valid products are retained in the master catalog. The source-market assignment is created when missing; source costs with a different currency are not converted or written as market costs. Sale price remains unset until manually entered."},200,origin);
     }catch(error){const timedOut=error instanceof DOMException&&error.name==="AbortError";return json({success:false,error:timedOut?"EasyOrders catalog import timed out.":(error instanceof Error?error.message:"Import failed.")},502,origin);}
     finally{clearTimeout(timeout);}
   }

@@ -480,6 +480,14 @@
       if(!selected.length){notify("حدد دولة واحدة على الأقل.");return;}
       btn.disabled=true;out.textContent="جارٍ حفظ التوزيع...";
       try{
+        // Remove market assignments that the owner explicitly unchecked.
+        const unselected=countries.filter(c=>!selected.some(x=>x.id===c.id));
+        for(const c of unselected){
+          const {error:removeLandingError}=await db.from("product_landing_pages").delete().eq("product_id",id).eq("country_id",c.id);
+          if(removeLandingError)throw removeLandingError;
+          const {error:removePriceError}=await db.from("product_country_prices").delete().eq("product_id",id).eq("country_id",c.id);
+          if(removePriceError)throw removePriceError;
+        }
         for(const c of selected){
           const cost=Number(el.querySelector('[data-cost="'+c.code+'"]').value),shipping=Number(el.querySelector('[data-shipping="'+c.code+'"]').value||0),sale=Number(el.querySelector('[data-sale="'+c.code+'"]').value);
           if(!Number.isFinite(cost)||cost<0||!Number.isFinite(shipping)||shipping<0||!Number.isFinite(sale)||sale<=0)throw new Error("أدخل التكلفة والشحن وسعر البيع الصحيح لسوق "+c.name_ar+".");
@@ -488,7 +496,7 @@
           const {error:le}=await db.from("product_landing_pages").upsert({product_id:id,country_id:c.id,slug,headline:title,subheadline:"متاح الآن في "+c.name_ar,body,benefits:[],images:Array.isArray(p.images)?p.images:[],sale_price:sale,currency_code:c.currency_code,seo_title:title,seo_description:body.slice(0,155),competitor_analysis:{source:"master_catalog_distribution"},status:"published",created_by:currentUser?.id||null,updated_at:new Date().toISOString(),published_at:new Date().toISOString()},{onConflict:"product_id,country_id"});if(le)throw le;
         }
         const {error:ue}=await db.from("products").update({status:"active",updated_at:new Date().toISOString()}).eq("id",id);if(ue)throw ue;
-        out.textContent="تم نشر المنتج في: "+selected.map(c=>c.name_ar).join("، ");notify("تم توزيع المنتج ونشره في الأسواق المحددة.");
+        out.textContent="تم النشر في: "+selected.map(c=>c.name_ar).join("، ")+(unselected.length?" — وتم إلغاء توزيعه من: "+unselected.map(c=>c.name_ar).join("، "):"");notify("تم تحديث توزيع المنتج في الأسواق المحددة.");
       }catch(e){out.textContent="تعذر إكمال التوزيع: "+e.message;notify(e.message);}finally{btn.disabled=false;}
     });
     $("masterSync").onclick=async()=>{
@@ -496,15 +504,15 @@
       try{
         const {data:conn,error:ce}=await db.from("integration_connections").select("config_public").eq("provider","easyorders").order("created_at",{ascending:false}).limit(1).maybeSingle();if(ce)throw ce;
         const source=String(conn?.config_public?.country_code||"").toUpperCase();if(!source)throw new Error("حدد دولة متجر EasyOrders وأكدها من صفحة التكاملات أولًا.");
-        let read=0,added=0,linked=0;
+        let read=0,added=0,linked=0,currencyMismatch=0,missingPrice=0,skipped=0;
         for(let page=1;page<=100;page++){
           out.textContent="جارٍ مزامنة كتالوج EasyOrders ("+source+") — الصفحة "+page;
           const {data,error}=await db.functions.invoke("easyorders-catalog-sync",{body:{mode:"import",country_code:source,page,limit:50}});
           if(error){let m=error.message||"فشلت المزامنة";if(error.context&&typeof error.context.json==="function"){try{m=(await error.context.json()).error||m;}catch(_){}}throw new Error(m);}
           if(!data?.success)throw new Error(data?.error||"فشلت المزامنة.");
-          read+=Number(data.fetched||0);added+=Number(data.imported||0);linked+=Number(data.linked||0);if(Number(data.fetched||0)<50)break;
+          read+=Number(data.fetched||0);added+=Number(data.imported||0);linked+=Number(data.linked||0);currencyMismatch+=Number(data.currency_mismatch||0);missingPrice+=Number(data.missing_price||0);skipped+=Number(data.skipped||0);if(Number(data.fetched||0)<50)break;
         }
-        out.textContent="اكتملت المزامنة: قراءة "+read+"، منتجات رئيسية جديدة "+added+"، ربط بسوق المصدر "+linked+".";
+        out.textContent="اكتملت المزامنة: منتجات مقروءة "+read+"، منتجات رئيسية جديدة "+added+"، ربط جديد بالسوق "+linked+"، متخطاة "+skipped+"، اختلاف عملة "+currencyMismatch+"، بدون تكلفة "+missingPrice+". المنتجات التي بلا تكلفة أو بعملة مختلفة محفوظة بالكتالوج الرئيسي، وتحتاج إدخال تكلفة وسعر بيع لكل سوق قبل النشر.";
         notify("اكتملت مزامنة الكتالوج.");await renderMasterCatalog();
       }catch(e){out.textContent=e.message;notify(e.message);}finally{const b=$("masterSync");if(b)b.disabled=false;}
     };

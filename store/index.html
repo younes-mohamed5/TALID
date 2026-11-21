@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#171717">
 <link rel="icon" type="image/svg+xml" href="../web/brand-mark.svg?v=20261116">
 <meta name="description" content="AL-GEBAIHY الجبيهى — تجربة تسوق بهوية عربية ورؤية إقليمية.">
@@ -122,7 +125,7 @@ footer p,footer a{color:#ded3bf}
 <nav class="nav">
 <a class="brand" href="#"><img class="mark" src="../web/brand-mark.svg?v=20261116" alt="شعار الجبيهى"><span><strong>AL-GEBAIHY</strong><small>الجبيهى</small></span></a>
 <div class="links"><a href="#">الرئيسية</a><a href="#categories">الأقسام</a><a href="#products">المنتجات</a><a href="#about">عن الجبيهى</a><a href="#contact">تواصل معنا</a></div>
-<select id="storeCountry" aria-label="اختر الدولة" style="border:1px solid var(--line);border-radius:24px;padding:10px;background:#fff;color:var(--ink)"><option value="EG">مصر — EGP</option><option value="SA">السعودية — SAR</option><option value="AE">الإمارات — AED</option><option value="OM">عُمان — OMR</option><option value="IQ">العراق — IQD</option></select><script>(function(){try{var m=(new URLSearchParams(location.search).get("market")||"").trim().toUpperCase();var el=document.getElementById("storeCountry");if(el&&["EG","SA","AE","OM","IQ"].includes(m)){el.value=m;el.dataset.marketFromUrl="true";}}catch(e){}})();</script>
+<select id="storeCountry" aria-label="اختر الدولة" style="border:1px solid var(--line);border-radius:24px;padding:10px;background:#fff;color:var(--ink)"><option value="EG">مصر — EGP</option><option value="SA">السعودية — SAR</option><option value="AE">الإمارات — AED</option><option value="OM">عُمان — OMR</option><option value="IQ">العراق — IQD</option></select>
 <label class="search"><input id="searchInput" placeholder="ابحث عن منتج..." aria-label="ابحث عن منتج"><button type="button" id="searchBtn" aria-label="بحث">⌕</button></label>
 <button class="cart" type="button" id="cartBtn">🛒 السلة (<span id="cartCount">0</span>)</button>
 </nav>
@@ -170,16 +173,15 @@ footer p,footer a{color:#ded3bf}
 <script>
 "use strict";
 const toast=document.getElementById("toast"),searchInput=document.getElementById("searchInput"),cartPanel=document.getElementById("cartPanel"),countrySelect=document.getElementById("storeCountry");
-const cartItems=[];let toastTimer,supabase=null;
+const cartItems=[];let toastTimer,supabase=null,storeLoadSequence=0;
 const STORE_MARKET_KEY="al_gebaihy_store_market_v1";
 const VALID_MARKETS=new Set(["EG","SA","AE","OM","IQ"]);
 function readStoreMarket(){
- // The URL is the authoritative shareable state. A saved value is only a fallback.
- // This prevents an old localStorage/cookie value (often EG) from overriding
- // a market selected by the customer and written to ?market=SA/AE/etc.
+ // A customer's last explicit choice is durable and wins over a stale URL.
+ // A market query is used on first visit (shareable market-specific links).
+ try{const saved=localStorage.getItem(STORE_MARKET_KEY)?.trim().toUpperCase();if(VALID_MARKETS.has(saved))return saved;}catch(_e){}
  const queryMarket=new URLSearchParams(location.search).get("market")?.trim().toUpperCase();
  if(VALID_MARKETS.has(queryMarket))return queryMarket;
- try{const saved=localStorage.getItem(STORE_MARKET_KEY)?.trim().toUpperCase();if(VALID_MARKETS.has(saved))return saved;}catch(_e){}
  const cookie=document.cookie.split(";").map(x=>x.trim()).find(x=>x.startsWith(STORE_MARKET_KEY+"="));
  let cookieMarket="";
  try{cookieMarket=cookie?decodeURIComponent(cookie.slice(STORE_MARKET_KEY.length+1)).toUpperCase():"";}catch(_e){}
@@ -219,6 +221,7 @@ function renderCart(){
  const total=cartItems.reduce((n,x)=>n+x.price*x.quantity,0);summary.textContent="الإجمالي: "+money(total,cartItems[0].currency);
 }
 async function loadStore(){
+ const requestId=++storeLoadSequence;
  const status=document.getElementById("storeCatalogStatus");
  const country=String(countrySelect.value||"EG").trim().toUpperCase();
  if(VALID_MARKETS.has(country))countrySelect.value=country;
@@ -236,22 +239,24 @@ async function loadStore(){
    supabase.from("product_landing_pages").select("product_id,slug,headline,subheadline,body,images,sale_price,currency_code,status").eq("country_id",market.id).eq("status","published")
   ]);
   if(pe)throw pe;if(le)throw le;
+  if(requestId!==storeLoadSequence)return;
   const available=(prices||[]).filter(x=>Number(x.sale_price)>0&&String(x.currency_code||"").toUpperCase()===String(market.currency_code||"").toUpperCase());
   const ids=[...new Set(available.map(x=>x.product_id).filter(Boolean))];
   if(!ids.length){
    renderCards([],market.currency_code);
-   status.textContent="السوق المحدد: "+market.name_ar+" — لا توجد أسعار بيع مفعّلة بعد. الأسعار المقروءة: "+(prices||[]).length+"، الصفحات المنشورة: "+(pages||[]).length+". راجع توزيع المنتج واعتماده لهذا السوق.";
+   status.textContent="السوق المحدد: "+market.name_ar+" — لا توجد أسعار بيع مفعّلة لهذا السوق. عدد سجلات الأسعار المتاحة: "+(prices||[]).length+"، وعدد صفحات الهبوط المنشورة: "+(pages||[]).length+". راجع توزيع المنتج واعتماد سعره وصفحته في لوحة الإدارة.";
    return;
   }
   const {data:products,error:pr}=await supabase.from("products").select("id,sku,name_ar,name_en,description,images,status").in("id",ids).eq("status","active");
   if(pr)throw pr;
+  if(requestId!==storeLoadSequence)return;
   const pageMap=new Map((pages||[]).map(x=>[x.product_id,x])),priceMap=new Map(available.map(x=>[x.product_id,x]));
   const rows=(products||[]).filter(p=>pageMap.has(p.id)).map(product=>({product,price:priceMap.get(product.id),landing:pageMap.get(product.id)}));
   renderCards(rows,market.currency_code);
   status.textContent=rows.length
    ? rows.length+" منتج معتمد في "+market.name_ar+" — الأسعار بعملة السوق."
-   : "السوق: "+market.name_ar+" — الأسعار المتاحة: "+available.length+"، المنتجات النشطة: "+(products||[]).length+"، صفحات الهبوط المنشورة: "+(pages||[]).length+". يلزم استكمال اعتماد/نشر صفحة المنتج لهذا السوق.";
- }catch(error){status.textContent="تعذر تحميل منتجات السوق "+country+": "+error.message;document.getElementById("productGrid").innerHTML='<p class="notice">'+safe(error.message)+'</p>';}
+   : "السوق: "+market.name_ar+" — الأسعار المتاحة: "+available.length+"، المنتجات النشطة: "+(products||[]).length+"، صفحات الهبوط المنشورة: "+(pages||[]).length+". لا يظهر المنتج إلا عند وجود سعر وصفحة منشورة للمنتج نفسه في هذه الدولة."
+ }catch(error){if(requestId!==storeLoadSequence)return;status.textContent="تعذر تحميل منتجات السوق "+country+": "+error.message;document.getElementById("productGrid").innerHTML='<p class="notice">'+safe(error.message)+'</p>';}
 }
 function filterProducts(){const q=searchInput.value.trim().toLocaleLowerCase("ar");let count=0;document.querySelectorAll(".product").forEach(card=>{const show=!q||(card.dataset.name||"").toLocaleLowerCase("ar").includes(q);card.hidden=!show;if(show)count++;});notify("نتائج البحث: "+count);}
 document.getElementById("searchBtn").addEventListener("click",filterProducts);searchInput.addEventListener("keydown",e=>{if(e.key==="Enter")filterProducts();});
